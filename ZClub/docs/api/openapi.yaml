@@ -1,0 +1,582 @@
+openapi: 3.0.0
+info:
+  title: ZClub 积分系统 API
+  description: ZClub 积分系统的 RESTful API 文档
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000/api
+    description: 本地开发环境
+
+paths:
+  # 认证相关 API
+  /auth/register:
+    post:
+      summary: 用户注册
+      tags:
+        - 认证
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: 
+                  type: string
+                email: 
+                  type: string
+                password: 
+                  type: string
+                role: 
+                  type: string
+                  enum: [admin, parent, child]
+                parent_id: 
+                  type: string
+                family_id: 
+                  type: string
+                age: 
+                  type: integer
+      responses:
+        '201':
+          description: 注册成功
+        '400':
+          description: 注册失败
+
+  /auth/login:
+    post:
+      summary: 用户登录
+      tags:
+        - 认证
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: 
+                  type: string
+                password: 
+                  type: string
+      responses:
+        '200':
+          description: 登录成功
+        '401':
+          description: 登录失败
+
+  # 家庭相关 API
+  /families:
+    get:
+      summary: 获取家庭列表
+      tags:
+        - 家庭
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+
+    post:
+      summary: 创建家庭
+      tags:
+        - 家庭
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: 
+                  type: string
+      responses:
+        '201':
+          description: 创建成功
+
+  /families/{id}:
+    get:
+      summary: 获取家庭详情
+      tags:
+        - 家庭
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+
+    put:
+      summary: 更新家庭信息
+      tags:
+        - 家庭
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: 
+                  type: string
+      responses:
+        '200':
+          description: 更新成功
+
+    delete:
+      summary: 删除家庭
+      tags:
+        - 家庭
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 删除成功
+
+  /families/{id}/invite:
+    post:
+      summary: 邀请家长加入家庭
+      tags:
+        - 家庭
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email: 
+                  type: string
+      responses:
+        '200':
+          description: 邀请成功
+
+  /families/{id}/members:
+    get:
+      summary: 获取家庭成员列表
+      tags:
+        - 家庭
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+
+  # 任务相关 API
+  /tasks:
+    get:
+      summary: 获取任务列表
+      tags:
+        - 任务
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+
+    post:
+      summary: 创建任务
+      tags:
+        - 任务
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: 
+                  type: string
+                description: 
+                  type: string
+                points: 
+                  type: integer
+                assignee_id: 
+                  type: string
+                due_date: 
+                  type: string
+                  format: date-time
+                recurrence: 
+                  type: string
+      responses:
+        '201':
+          description: 创建成功
+
+  /tasks/{id}:
+    get:
+      summary: 获取任务详情
+      tags:
+        - 任务
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+
+    put:
+      summary: 更新任务
+      tags:
+        - 任务
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: 
+                  type: string
+                description: 
+                  type: string
+                points: 
+                  type: integer
+                assignee_id: 
+                  type: string
+                due_date: 
+                  type: string
+                  format: date-time
+                recurrence: 
+                  type: string
+      responses:
+        '200':
+          description: 更新成功
+
+    delete:
+      summary: 删除任务
+      tags:
+        - 任务
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 删除成功
+
+  /tasks/{id}/complete:
+    post:
+      summary: 完成任务
+      tags:
+        - 任务
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 提交成功
+
+  /tasks/{id}/approve:
+    post:
+      summary: 审批任务
+      tags:
+        - 任务
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 审批成功
+
+  /tasks/pending-approval:
+    get:
+      summary: 获取待审批任务
+      tags:
+        - 任务
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+
+  # 积分相关 API
+  /points/balance:
+    get:
+      summary: 获取积分余额
+      tags:
+        - 积分
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+
+  /points/history:
+    get:
+      summary: 获取积分历史
+      tags:
+        - 积分
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+
+  # 奖励相关 API
+  /rewards:
+    get:
+      summary: 获取奖励列表
+      tags:
+        - 奖励
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+
+    post:
+      summary: 创建奖励
+      tags:
+        - 奖励
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: 
+                  type: string
+                description: 
+                  type: string
+                points_required: 
+                  type: integer
+                stock: 
+                  type: integer
+      responses:
+        '201':
+          description: 创建成功
+
+  /rewards/{id}:
+    get:
+      summary: 获取奖励详情
+      tags:
+        - 奖励
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+
+    put:
+      summary: 更新奖励
+      tags:
+        - 奖励
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: 
+                  type: string
+                description: 
+                  type: string
+                points_required: 
+                  type: integer
+                stock: 
+                  type: integer
+      responses:
+        '200':
+          description: 更新成功
+
+    delete:
+      summary: 删除奖励
+      tags:
+        - 奖励
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 删除成功
+
+  /rewards/{id}/redeem:
+    post:
+      summary: 兑换奖励
+      tags:
+        - 奖励
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 申请成功
+
+  /rewards/redemptions/pending:
+    get:
+      summary: 获取待审批兑换
+      tags:
+        - 奖励
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+
+  /rewards/redemptions/{id}/approve:
+    post:
+      summary: 审批兑换
+      tags:
+        - 奖励
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 审批成功
+
+  # 通知相关 API
+  /notifications:
+    get:
+      summary: 获取通知列表
+      tags:
+        - 通知
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+
+  /notifications/{id}/read:
+    put:
+      summary: 标记通知为已读
+      tags:
+        - 通知
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 成功
+
+  # 报表相关 API
+  /reports/points:
+    get:
+      summary: 获取积分报表
+      tags:
+        - 报表
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+
+  /reports/tasks:
+    get:
+      summary: 获取任务报表
+      tags:
+        - 报表
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 成功
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
