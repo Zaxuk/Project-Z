@@ -4,11 +4,14 @@ import com.zclub.model.Task;
 import com.zclub.model.TaskCompletion;
 import com.zclub.repository.TaskRepository;
 import com.zclub.repository.TaskCompletionRepository;
+import com.zclub.security.UserPrincipal;
 import com.zclub.service.PointService;
 import com.zclub.service.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.Map;
@@ -32,9 +35,56 @@ public class TaskController {
     @PostMapping
     public ResponseEntity<?> createTask(@RequestBody Task task) {
         try {
+            System.out.println("TaskController - createTask called");
+            System.out.println("TaskController - Received task: title=" + task.getTitle() + ", description=" + task.getDescription());
+            
+            // 从SecurityContext获取当前登录用户信息
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            System.out.println("TaskController - Authentication: " + authentication);
+            if (authentication != null) {
+                System.out.println("TaskController - Principal: " + authentication.getPrincipal());
+                System.out.println("TaskController - Principal type: " + (authentication.getPrincipal() != null ? authentication.getPrincipal().getClass().getName() : "null"));
+                System.out.println("TaskController - Is authenticated: " + authentication.isAuthenticated());
+            }
+            
+            if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal) {
+                UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
+                System.out.println("TaskController - UserPrincipal found - userId: " + userPrincipal.getUserId() + ", familyId: " + userPrincipal.getFamilyId());
+                
+                // 自动设置familyId和createdBy
+                UUID familyId = userPrincipal.getFamilyId();
+                UUID userId = userPrincipal.getUserId();
+                
+                System.out.println("TaskController - Setting familyId: " + familyId);
+                System.out.println("TaskController - Setting createdBy: " + userId);
+                
+                if (familyId == null) {
+                    System.out.println("TaskController - ERROR: familyId is null! Cannot create task.");
+                    Map<String, String> errorMap = new HashMap<>();
+                    errorMap.put("error", "User familyId is null. Please contact administrator.");
+                    return new ResponseEntity<>(errorMap, HttpStatus.BAD_REQUEST);
+                }
+                
+                task.setFamilyId(familyId);
+                task.setCreatedBy(userId);
+            } else {
+                System.out.println("TaskController - ERROR: UserPrincipal not found in SecurityContext");
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("error", "User not authenticated");
+                return new ResponseEntity<>(errorMap, HttpStatus.UNAUTHORIZED);
+            }
+            
+            // 设置默认值
+            if (task.getStatus() == null) {
+                task.setStatus("pending");
+            }
+            if (task.getRecurrenceStatus() == null) {
+                task.setRecurrenceStatus("non_recurring");
+            }
             Task createdTask = taskRepository.save(task);
             return new ResponseEntity<>(createdTask, HttpStatus.CREATED);
         } catch (Exception e) {
+            e.printStackTrace();
             Map<String, String> errorMap = new HashMap<>();
             errorMap.put("error", e.getMessage());
             return new ResponseEntity<>(errorMap, HttpStatus.BAD_REQUEST);

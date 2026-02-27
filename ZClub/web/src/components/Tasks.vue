@@ -87,7 +87,8 @@ export default {
       description: '',
       pointsReward: 0,
       taskType: 'study',
-      status: 'pending'
+      status: 'pending',
+      recurrenceStatus: 'non_recurring'
     })
 
     const tasks = computed(() => store.state.tasks)
@@ -103,11 +104,8 @@ export default {
 
     const createTask = async () => {
       try {
-        const response = await axios.post('/api/tasks', {
-          ...taskForm.value,
-          familyId: store.state.user.familyId,
-          createdBy: store.state.user.id
-        })
+        // 只传递任务表单数据，familyId和createdBy由后端从SecurityContext自动获取
+        const response = await axios.post('/api/tasks', taskForm.value)
         await store.dispatch('fetchTasks')
         showCreateTaskDialog.value = false
       } catch (error) {

@@ -49,19 +49,13 @@ export default {
   setup() {
     const store = useStore()
     const loading = ref(false)
-    const pointRecords = ref([])
-    const points = ref(0)
+    const pointRecords = computed(() => store.state.pointRecords)
+    const points = computed(() => store.state.points)
 
     onMounted(async () => {
       loading.value = true
       try {
-        // 获取积分余额
-        const balanceResponse = await axios.get(`/api/points/balance/${store.state.user.id}`)
-        points.value = balanceResponse.data.balance
-
-        // 获取积分历史
-        const recordsResponse = await axios.get(`/api/points/records/${store.state.user.id}`)
-        pointRecords.value = recordsResponse.data
+        await store.dispatch('fetchPoints')
       } catch (error) {
         console.error('Failed to fetch points:', error)
       } finally {

@@ -1,6 +1,8 @@
 package com.zclub.service;
 
+import com.zclub.model.Family;
 import com.zclub.model.User;
+import com.zclub.repository.FamilyRepository;
 import com.zclub.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,11 +16,32 @@ public class AuthService {
     private UserRepository userRepository;
 
     @Autowired
+    private FamilyRepository familyRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     public User register(User user) {
         user.setPassword(passwordEncoder.encode(user.getPassword()));
-        return userRepository.save(user);
+        if (user.getStatus() == null) {
+            user.setStatus("active");
+        }
+        // 如果没有familyId，自动生成一个
+        if (user.getFamilyId() == null) {
+            user.setFamilyId(UUID.randomUUID());
+        }
+        
+        // 先保存用户，获取用户ID
+        User savedUser = userRepository.save(user);
+        
+        // 创建对应的Family记录（使用保存后的用户ID）
+        Family family = new Family();
+        family.setId(savedUser.getFamilyId());
+        family.setName(savedUser.getName() + "的家庭");
+        family.setCreatedBy(savedUser.getId());
+        familyRepository.save(family);
+        
+        return savedUser;
     }
 
     public Optional<User> login(String email, String password) {

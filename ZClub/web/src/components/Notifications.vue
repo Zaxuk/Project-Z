@@ -24,38 +24,23 @@
 <script>
 import { ref, onMounted, computed } from 'vue'
 import { useStore } from 'vuex'
-import axios from 'axios'
 
 export default {
   name: 'Notifications',
   setup() {
     const store = useStore()
     const loading = ref(false)
-    const notifications = ref([])
+
+    const notifications = computed(() => store.state.notifications)
 
     onMounted(async () => {
       loading.value = true
-      try {
-        const response = await axios.get(`/api/notifications/${store.state.user.id}`)
-        notifications.value = response.data
-      } catch (error) {
-        console.error('Failed to fetch notifications:', error)
-      } finally {
-        loading.value = false
-      }
+      await store.dispatch('fetchNotifications')
+      loading.value = false
     })
 
     const markAsRead = async (notificationId) => {
-      try {
-        await axios.put(`/api/notifications/${notificationId}/read`)
-        // 更新本地通知状态
-        const notification = notifications.value.find(n => n.id === notificationId)
-        if (notification) {
-          notification.readStatus = 'read'
-        }
-      } catch (error) {
-        console.error('Failed to mark notification as read:', error)
-      }
+      await store.dispatch('markNotificationAsRead', notificationId)
     }
 
     return {

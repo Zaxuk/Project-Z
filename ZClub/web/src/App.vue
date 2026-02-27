@@ -76,7 +76,7 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import Tasks from './components/Tasks.vue'
 import Rewards from './components/Rewards.vue'
@@ -106,7 +106,12 @@ export default {
       password: ''
     })
 
-    const isLoggedIn = computed(() => store.state.user !== null)
+    const isLoggedIn = computed(() => store.getters.isLoggedIn)
+    
+    // 页面加载时初始化登录状态
+    onMounted(() => {
+      store.dispatch('initAuth')
+    })
 
     const login = async () => {
       try {
@@ -126,7 +131,6 @@ export default {
         }
         await store.dispatch('register', userData)
         showRegisterDialog.value = false
-        showLoginDialog.value = true
       } catch (error) {
         console.error('Register failed:', error)
       }
