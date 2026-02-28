@@ -1,5 +1,5 @@
 
-# Manifesto.md
+# AGENTS.md
 
 ## 本项目基本法 (V1.0)
 
@@ -12,7 +12,7 @@
 ---
 ### 2. 项目目录结构说明
 ├── .cursorrules               # [核心] 给 AI 的系统级指令（包含技术栈、编码风格等）
-├── Technical_Manifesto.md     # [核心] 项目“基本法”，即本文件
+├── AGENTS.md                  # [核心] 项目“基本法”，即本文件
 ├── README.md                  # 项目入口，包含环境搭建和快速启动指南
 ├── docker-compose.yml         # 本地开发环境（DB, Redis, Mock Server）
 ├── .env.example               # 环境变量模板
