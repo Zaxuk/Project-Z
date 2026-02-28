@@ -1,5 +1,80 @@
 # 变更日志
 
+## 2026-02-28
+
+### 项目目录结构重构
+按照《项目基本法》(Manifesto.md) 要求，将代码从按技术层拆分重构为按业务领域模块拆分：
+
+#### 目录结构变更
+```
+Before:
+src/main/java/com/zclub/
+├── controller/     # 所有Controller
+├── service/        # 所有Service
+├── repository/     # 所有Repository
+├── model/          # 所有Entity
+└── util/           # 工具类
+
+After:
+src/main/java/com/zclub/
+├── modules/        # 业务领域模块
+│   ├── auth/       # 认证模块
+│   │   ├── controller/
+│   │   ├── service/
+│   │   ├── repository/
+│   │   ├── entity/
+│   │   └── tests/
+│   ├── task/       # 任务模块
+│   ├── reward/     # 奖励模块
+│   ├── point/      # 积分模块
+│   ├── notification/ # 通知模块
+│   └── family/     # 家庭模块
+├── libs/           # 通用工具库
+├── jobs/           # 异步任务
+│   ├── workers/
+│   └── triggers/
+├── config/         # 全局配置
+└── security/       # 安全配置
+```
+
+#### 文件移动和包声明更新
+- 移动 31 个 Java 文件到对应的业务模块
+- 更新所有文件的 package 声明
+- 更新所有 import 语句
+- 删除旧的 controller/service/repository/model/util 目录
+
+#### 新增目录
+- `src/main/java/com/zclub/modules/*` - 6个业务领域模块
+- `src/main/java/com/zclub/libs/` - 通用工具库
+- `src/main/java/com/zclub/jobs/` - 异步任务
+- `tests/integration/` - 集成测试
+- `tests/mocks/` - Mock数据
+- `scripts/` - 运维脚本
+
+#### 测试目录调整
+- 将 `web/e2e/` 移动到 `tests/e2e/`（符合基本法规范）
+- 更新 `web/playwright.config.js` 中的 `testDir` 配置
+- 删除 `web/playwright-report/`（生成文件不应提交）
+- 创建 `.gitignore` 文件，忽略 playwright-report/ 等生成文件
+
+#### 脚本文件整理
+- 将根目录下的测试脚本移动到 `scripts/` 目录：
+  - `test-auth.js` → `scripts/test-auth.js`
+  - `test_api.bat` → `scripts/test_api.bat`
+  - `test_api.ps1` → `scripts/test_api.ps1`
+  - `test_api2.ps1` → `scripts/test_api2.ps1`
+
+#### 文档完善
+- 创建 `README.md`，包含：
+  - 项目介绍和功能特性
+  - 技术栈说明
+  - 项目结构图解
+  - 快速开始指南（后端、前端启动步骤）
+  - E2E 测试运行说明
+  - API 文档索引
+  - 数据库配置说明
+  - 项目规范引用
+
 ## 2026-02-27
 
 ### 认证与授权功能实现

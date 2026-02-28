@@ -1,8 +1,8 @@
 package com.zclub.security;
 
-import com.zclub.model.User;
-import com.zclub.service.AuthService;
-import com.zclub.util.JwtUtil;
+import com.zclub.modules.auth.entity.User;
+import com.zclub.modules.auth.service.AuthService;
+import com.zclub.libs.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
