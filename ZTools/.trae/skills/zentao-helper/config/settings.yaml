@@ -1,0 +1,39 @@
+# ZenTao Helper Configuration
+
+zentao:
+  # 禅道服务器地址
+  base_url: "http://zentao.diansan.com/"
+  # API 请求超时时间（秒）
+  timeout: 30
+  # 重试次数（指数退避）
+  retry_times: 3
+  # 重试退避因子（秒）
+  retry_backoff: 1
+
+# 日志配置
+logging:
+  # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+  # 日志格式: json, text
+  format: "json"
+
+# NLP 配置
+nlp:
+  # 是否启用 NLP 调试模式
+  debug: false
+  # 预留：LLM API 配置（未来扩展）
+  llm:
+    enabled: false
+    provider: ""  # openai, deepseek, 等
+    api_key: ""
+    model: ""
+
+# 会话配置
+session:
+  # 会话加密密钥存储位置（keyring）
+  keyring_service: "ZTools"
+  keyring_username: "zentao-session"
+  # 会话文件路径
+  session_file: ".session.enc"
+  # 会话有效期检查间隔（秒）
+  check_interval: 300
