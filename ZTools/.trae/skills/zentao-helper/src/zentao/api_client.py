@@ -663,16 +663,276 @@ class ZentaoApiClient:
         
         return None
 
+    def create_task(self, execution_id: int, name: str, assigned_to: str = None,
+                    estimate: float = 0, deadline: str = None, parent_id: int = None) -> ApiResponse:
+        """
+        创建任务 (适配 8.x 版本)
+        
+        Args:
+            execution_id: 执行ID/项目ID
+            name: 任务名称
+            assigned_to: 指派给（用户名）
+            estimate: 预计工时
+            deadline: 截止日期 (格式: YYYY-MM-DD)
+            parent_id: 父任务ID（用于创建子任务）
+            
+        Returns:
+            创建结果
+        """
+        try:
+            # 禅道 8.x 使用表单提交创建任务
+            url = f"{self.base_url}/task-create-{execution_id}-0.html"
+            
+            # 准备表单数据
+            form_data = {
+                'name': name,
+                'type': 'devel' if not parent_id else 'devel',  # 任务类型
+                'pri': 3,  # 优先级 (1-4)
+                'estimate': estimate if estimate else '',
+                'assignedTo': assigned_to if assigned_to else '',
+                'desc': '',
+            }
+            
+            # 如果有父任务，添加 parent 字段
+            if parent_id:
+                form_data['parent'] = parent_id
+            
+            # 如果有截止日期
+            if deadline:
+                form_data['deadline'] = deadline
+            
+            self.logger.info(f"创建任务: {name} (execution: {execution_id})")
+            
+            # 发送 POST 请求
+            response = self.session.post(url, data=form_data, timeout=self.timeout)
+            response.encoding = 'utf-8'
+            
+            if response.status_code == 200:
+                # 检查是否创建成功（通常重定向到任务列表或任务详情）
+                # 禅道创建成功后通常会跳转到 execution-task-{execution_id}.html
+                if 'execution-task' in response.url or 'task-view' in response.url:
+                    # 尝试从 URL 中提取新创建的任务ID
+                    task_id_match = re.search(r'task-view-(\d+)\.html', response.url)
+                    if task_id_match:
+                        task_id = int(task_id_match.group(1))
+                        self.logger.info(f"任务创建成功: #{task_id}")
+                        return ApiResponse.success_response({
+                            'id': task_id,
+                            'name': name,
+                            'url': f"{self.base_url}/task-view-{task_id}.html"
+                        })
+                    else:
+                        # 创建成功但无法获取任务ID
+                        return ApiResponse.success_response({
+                            'name': name,
+                            'message': '任务创建成功'
+                        })
+                else:
+                    # 检查页面内容是否包含错误信息
+                    if 'error' in response.text.lower() or '错误' in response.text:
+                        self.logger.error("任务创建失败: 页面返回错误")
+                        return ApiResponse.error_response(
+                            ErrorCode.API_ERROR,
+                            "任务创建失败，请检查参数"
+                        )
+                    else:
+                        # 可能是创建成功，但无法确定
+                        return ApiResponse.success_response({
+                            'name': name,
+                            'message': '任务可能已创建成功，请检查任务列表'
+                        })
+            else:
+                self.logger.error(f"创建任务失败: HTTP {response.status_code}")
+                return ApiResponse.error_response(
+                    ErrorCode.API_ERROR,
+                    f"创建任务失败: HTTP {response.status_code}"
+                )
+                
+        except requests.Timeout:
+            self.logger.error("创建任务超时")
+            return ApiResponse.error_response(
+                ErrorCode.TIMEOUT,
+                ErrorMessage.TIMEOUT
+            )
+        except Exception as e:
+            self.logger.error(f"创建任务异常: {str(e)}")
+            return ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                f"{ErrorMessage.API_ERROR}: {str(e)}"
+            )
+
     def split_task(self, parent_task_id: int, subtask_names: List[str]) -> ApiResponse:
-        """任务拆解 (适配 8.x 版本)"""
-        return ApiResponse.error_response(
-            ErrorCode.API_ERROR,
-            "任务拆解功能需要进一步适配禅道 8.x API"
-        )
+        """
+        任务拆解 (适配 8.x 版本)
+        将父任务拆解为多个子任务
+        
+        Args:
+            parent_task_id: 父任务ID
+            subtask_names: 子任务名称列表
+            
+        Returns:
+            拆解结果
+        """
+        try:
+            # 首先获取父任务信息，获取 execution_id
+            parent_task_result = self._get_task_detail_full(parent_task_id)
+            if not parent_task_result:
+                return ApiResponse.error_response(
+                    ErrorCode.TASK_NOT_FOUND,
+                    f"未找到父任务 #{parent_task_id}"
+                )
+            
+            execution_id = parent_task_result.get('project')
+            if not execution_id:
+                return ApiResponse.error_response(
+                    ErrorCode.API_ERROR,
+                    "无法获取父任务的项目信息"
+                )
+            
+            self.logger.info(f"开始拆解任务 #{parent_task_id} 到 {len(subtask_names)} 个子任务")
+            
+            created_tasks = []
+            failed_tasks = []
+            
+            for i, name in enumerate(subtask_names, 1):
+                result = self.create_task(
+                    execution_id=execution_id,
+                    name=name,
+                    parent_id=parent_task_id
+                )
+                
+                if result.success:
+                    created_tasks.append({
+                        'index': i,
+                        'name': name,
+                        'id': result.data.get('id')
+                    })
+                    self.logger.info(f"子任务 {i} 创建成功: {name}")
+                else:
+                    failed_tasks.append({
+                        'index': i,
+                        'name': name,
+                        'error': result.error.message if result.error else '未知错误'
+                    })
+                    self.logger.error(f"子任务 {i} 创建失败: {name}")
+            
+            return ApiResponse.success_response({
+                'parent_task_id': parent_task_id,
+                'created_tasks': created_tasks,
+                'failed_tasks': failed_tasks,
+                'success_count': len(created_tasks),
+                'fail_count': len(failed_tasks)
+            })
+            
+        except Exception as e:
+            self.logger.error(f"任务拆解异常: {str(e)}")
+            return ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                f"任务拆解失败: {str(e)}"
+            )
 
     def assign_task(self, task_id: int, username: str) -> ApiResponse:
-        """任务分配 (适配 8.x 版本)"""
-        return ApiResponse.error_response(
-            ErrorCode.API_ERROR,
-            "任务分配功能需要进一步适配禅道 8.x API"
-        )
+        """
+        任务分配 (适配 8.x 版本)
+        将任务指派给指定用户
+        
+        Args:
+            task_id: 任务ID
+            username: 用户名
+            
+        Returns:
+            分配结果
+        """
+        try:
+            # 首先获取任务详情，获取 execution_id
+            task_detail = self._get_task_detail_full(task_id)
+            if not task_detail:
+                return ApiResponse.error_response(
+                    ErrorCode.TASK_NOT_FOUND,
+                    f"未找到任务 #{task_id}"
+                )
+            
+            execution_id = task_detail.get('project')
+            if not execution_id:
+                return ApiResponse.error_response(
+                    ErrorCode.API_ERROR,
+                    "无法获取任务的项目信息"
+                )
+            
+            # 禅道 8.x 使用 task-assign 页面进行分配
+            url = f"{self.base_url}/task-assign-{task_id}.html"
+            
+            # 准备表单数据
+            form_data = {
+                'assignedTo': username,
+                'comment': ''
+            }
+            
+            self.logger.info(f"分配任务 #{task_id} 给 {username}")
+            
+            # 发送 POST 请求
+            response = self.session.post(url, data=form_data, timeout=self.timeout)
+            response.encoding = 'utf-8'
+            
+            if response.status_code == 200:
+                # 检查是否分配成功
+                if 'execution-task' in response.url or 'task-view' in response.url:
+                    self.logger.info(f"任务 #{task_id} 分配成功")
+                    return ApiResponse.success_response({
+                        'task_id': task_id,
+                        'assigned_to': username,
+                        'message': f'任务已成功分配给 {username}'
+                    })
+                else:
+                    return ApiResponse.error_response(
+                        ErrorCode.API_ERROR,
+                        "任务分配可能失败，请检查任务状态"
+                    )
+            else:
+                self.logger.error(f"分配任务失败: HTTP {response.status_code}")
+                return ApiResponse.error_response(
+                    ErrorCode.API_ERROR,
+                    f"分配任务失败: HTTP {response.status_code}"
+                )
+                
+        except requests.Timeout:
+            self.logger.error("分配任务超时")
+            return ApiResponse.error_response(
+                ErrorCode.TIMEOUT,
+                ErrorMessage.TIMEOUT
+            )
+        except Exception as e:
+            self.logger.error(f"分配任务异常: {str(e)}")
+            return ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                f"分配任务失败: {str(e)}"
+            )
+
+    def _get_task_detail_full(self, task_id: int) -> Optional[Dict]:
+        """
+        获取任务完整详情（内部方法）
+        
+        Args:
+            task_id: 任务ID
+            
+        Returns:
+            任务完整信息字典
+        """
+        try:
+            url = f"{self.base_url}/task-view-{task_id}.json"
+            response = self.session.get(url, timeout=self.timeout)
+            
+            if response.status_code == 200:
+                response.encoding = 'utf-8'
+                try:
+                    result = response.json()
+                    if result.get('status') == 'success' and 'data' in result:
+                        task_data = json.loads(result['data'])
+                        if 'task' in task_data:
+                            return task_data['task']
+                except Exception as e:
+                    self.logger.warning(f"解析任务 {task_id} 详情失败: {str(e)}")
+        except Exception as e:
+            self.logger.warning(f"获取任务 {task_id} 详情失败: {str(e)}")
+        
+        return None
