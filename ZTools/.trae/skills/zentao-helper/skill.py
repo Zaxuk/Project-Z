@@ -179,36 +179,124 @@ class ZenTaoHelperSkill:
         })
 
     def _handle_query_stories(self, entities: dict) -> ApiResponse:
-        """处理查询需求意图"""
+        """处理查询需求意图
+        
+        默认只查询已计划(planned)和已立项(projected)阶段的需求，
+        除非用户明确指定了状态或要求查看所有需求
+        支持过滤未创建任务的需求
+        """
         status = entities.get('status')
+        filter_no_task = entities.get('filter_no_task', False)
+        
+        # 获取所有需求
         result = self.story_collector.collect(status=status)
-
+        
         if result.success:
+            stories = result.data.get('stories', [])
+            
+            # 如果用户没有指定状态，默认过滤已计划和已立项的需求
+            if not status:
+                filtered_stories = [
+                    story for story in stories 
+                    if story.get('stage') in ['planned', 'projected']
+                ]
+                
+                self.logger.info(f"默认过滤后: {len(filtered_stories)} 个需求 (已计划/已立项)")
+            elif status == 'all':
+                # 用户要求查看所有需求，不过滤
+                filtered_stories = stories
+                self.logger.info(f"显示所有需求: {len(filtered_stories)} 个")
+            else:
+                # 用户指定了具体状态，按状态过滤
+                filtered_stories = stories
+            
+            # 如果需要过滤未创建任务的需求
+            if filter_no_task:
+                self.logger.info(f"开始检查 {len(filtered_stories)} 个需求的任务创建情况...")
+                stories_no_task = []
+                
+                for story in filtered_stories:
+                    story_id = story.get('id', 0)
+                    task_count = self.api_client.get_story_task_count(story_id)
+                    
+                    if task_count == 0:
+                        stories_no_task.append(story)
+                        self.logger.debug(f"需求 #{story_id} 未创建任务")
+                    else:
+                        self.logger.debug(f"需求 #{story_id} 已创建 {task_count} 个任务")
+                
+                filtered_stories = stories_no_task
+                self.logger.info(f"过滤后: {len(filtered_stories)} 个未创建任务的需求")
+            
+            result_data = {
+                'stories': filtered_stories,
+                'total': len(filtered_stories),
+                'count': len(filtered_stories)
+            }
+            
             # 格式化显示
-            display_text = self.story_collector.format_display(result.data)
+            display_text = self.story_collector.format_display(result_data)
             return ApiResponse.success_response({
                 'message': display_text,
-                'data': result.data,
+                'data': result_data,
                 'type': 'stories'
             })
 
         return result
 
     def _handle_query_tasks(self, entities: dict) -> ApiResponse:
-        """处理查询任务意图"""
+        """处理查询任务意图
+        
+        默认只查询等待和进行中的任务，除非用户明确指定了状态或要求查看所有任务
+        """
         status = entities.get('status')
-        result = self.task_collector.collect(status=status)
+        
+        # 如果用户没有指定状态，默认查询等待和进行中的任务
+        if not status:
+            # 先查询等待中的任务
+            wait_result = self.task_collector.collect(status='wait')
+            # 再查询进行中的任务
+            doing_result = self.task_collector.collect(status='doing')
+            
+            # 合并结果
+            if wait_result.success and doing_result.success:
+                wait_tasks = wait_result.data.get('tasks', [])
+                doing_tasks = doing_result.data.get('tasks', [])
+                all_tasks = wait_tasks + doing_tasks
+                
+                result_data = {
+                    'tasks': all_tasks,
+                    'total': len(all_tasks),
+                    'count': len(all_tasks)
+                }
+                
+                # 格式化显示
+                display_text = self.task_collector.format_display(result_data)
+                return ApiResponse.success_response({
+                    'message': display_text,
+                    'data': result_data,
+                    'type': 'tasks'
+                })
+            elif wait_result.success:
+                return wait_result
+            elif doing_result.success:
+                return doing_result
+            else:
+                return wait_result
+        else:
+            # 用户指定了状态，按指定状态查询
+            result = self.task_collector.collect(status=status)
 
-        if result.success:
-            # 格式化显示
-            display_text = self.task_collector.format_display(result.data)
-            return ApiResponse.success_response({
-                'message': display_text,
-                'data': result.data,
-                'type': 'tasks'
-            })
+            if result.success:
+                # 格式化显示
+                display_text = self.task_collector.format_display(result.data)
+                return ApiResponse.success_response({
+                    'message': display_text,
+                    'data': result.data,
+                    'type': 'tasks'
+                })
 
-        return result
+            return result
 
     def _handle_split_task(self, entities: dict, user_input: str) -> ApiResponse:
         """处理任务拆解意图"""

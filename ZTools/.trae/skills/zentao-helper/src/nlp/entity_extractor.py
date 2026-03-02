@@ -165,6 +165,7 @@ class EntityExtractor:
         - 进行中
         - 已完成
         - 已关闭
+        - 所有/全部（返回 'all'）
 
         Args:
             text: 用户输入的文本
@@ -172,6 +173,12 @@ class EntityExtractor:
         Returns:
             状态字符串，如果未找到返回 None
         """
+        # 检查是否要求查看所有
+        if '所有' in text or '全部' in text:
+            if self.debug:
+                self.logger.debug(f"提取状态: {text} -> all")
+            return 'all'
+        
         status_map = {
             '未开始': 'wait',
             '待办': 'wait',
@@ -191,6 +198,30 @@ class EntityExtractor:
 
         return None
 
+    def extract_filter_no_task(self, text: str) -> bool:
+        """
+        提取是否过滤未创建任务的需求
+
+        支持格式：
+        - 未创建任务
+        - 没有任务
+        - 没建任务
+        - 未建任务
+
+        Args:
+            text: 用户输入的文本
+
+        Returns:
+            是否需要过滤未创建任务的需求
+        """
+        keywords = ['未创建任务', '没有任务', '没建任务', '未建任务', '无任务']
+        for keyword in keywords:
+            if keyword in text:
+                if self.debug:
+                    self.logger.debug(f"提取过滤条件: {text} -> 未创建任务")
+                return True
+        return False
+
     def extract_all(self, text: str) -> Dict[str, any]:
         """
         提取所有实体
@@ -206,5 +237,6 @@ class EntityExtractor:
             'story_id': self.extract_story_id(text),
             'username': self.extract_username(text),
             'subtask_names': self.extract_subtask_names(text),
-            'status': self.extract_status(text)
+            'status': self.extract_status(text),
+            'filter_no_task': self.extract_filter_no_task(text)
         }

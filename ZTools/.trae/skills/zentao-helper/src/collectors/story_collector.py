@@ -14,12 +14,33 @@ class StoryCollector(BaseCollector):
     需求收集器
     """
 
+    # 状态映射表
+    STATUS_MAP = {
+        'draft': '📝 草稿',
+        'active': '🔥 激活',
+        'closed': '✅ 已关闭',
+        'changed': '🔄 已变更'
+    }
+
+    # 阶段映射表
+    STAGE_MAP = {
+        'wait': '等待',
+        'planned': '已计划',
+        'projected': '已立项',
+        'developing': '研发中',
+        'developed': '研发完毕',
+        'testing': '测试中',
+        'tested': '测试完毕',
+        'verified': '已验收',
+        'released': '已发布'
+    }
+
     def collect(self, status: Optional[str] = None, **kwargs) -> ApiResponse:
         """
         收集需求列表
 
         Args:
-            status: 需求状态过滤 (all, draft, active, closed)
+            status: 需求状态过滤 (all, draft, active, closed, changed)
             **kwargs: 其他参数
 
         Returns:
@@ -58,29 +79,58 @@ class StoryCollector(BaseCollector):
         total = data.get('total', 0)
 
         if not stories:
-            return f"暂无需求"
+            return "暂无需求"
 
-        lines = [f"需求列表 (共 {total} 个):\n"]
+        lines = [f"📖 需求列表 (共 {total} 个)\n"]
+        lines.append("=" * 80 + "\n")
 
-        for story in stories:
-            status_map = {
-                'draft': '草稿',
-                'active': '激活',
-                'closed': '已关闭',
-                'changed': '已变更'
-            }
+        for i, story in enumerate(stories, 1):
+            story_id = story.get('id', 0)
+            title = story.get('title', '')
+            status = story.get('status', 'unknown')
+            priority = story.get('priority', 0)
+            assigned_to = story.get('assigned_to', '')
+            opened_by = story.get('opened_by', '')
+            opened_date = story.get('opened_date', '')
+            product = story.get('product', '')
+            plan = story.get('plan', '')
+            stage = story.get('stage', '')
+            estimate = story.get('estimate', 0)
 
-            status_text = status_map.get(story.get('status', ''), story.get('status', ''))
+            # 获取状态和阶段的中文显示
+            status_display = self.STATUS_MAP.get(status, f'❓ {status}')
+            stage_display = self.STAGE_MAP.get(stage, stage)
 
-            line = f"  #{story['id']} - {story['title']}\n"
-            line += f"    状态: {status_text} | 优先级: {story.get('priority', 0)}\n"
-
-            if story.get('assigned_to'):
-                line += f"    指派给: {story['assigned_to']}\n"
-
-            if story.get('module'):
-                line += f"    模块: {story['module']}\n"
-
-            lines.append(line)
+            lines.append(f"{i}. 需求 #{story_id} [{status_display}]\n")
+            
+            if product:
+                lines.append(f"   产品: {product}\n")
+            if plan:
+                lines.append(f"   计划: {plan}\n")
+            
+            lines.append(f"   标题: {title}\n")
+            
+            # 优先级显示（转换为整数）
+            try:
+                priority_int = int(priority) if priority else 0
+            except (ValueError, TypeError):
+                priority_int = 0
+            priority_icon = "🔴" if priority_int >= 3 else "🟡" if priority_int == 2 else "🟢" if priority_int == 1 else "⚪"
+            lines.append(f"   优先级: {priority_icon} {priority_int}\n")
+            
+            if stage_display:
+                lines.append(f"   阶段: {stage_display}\n")
+            if estimate:
+                lines.append(f"   预计工时: {estimate}h\n")
+            if opened_date:
+                lines.append(f"   创建时间: {opened_date}\n")
+            if opened_by:
+                lines.append(f"   创建者: {opened_by}\n")
+            
+            # 禅道链接
+            url = f"http://zentao.diansan.com/story-view-{story_id}.html"
+            lines.append(f"   禅道链接: {url}\n")
+            
+            lines.append("-" * 60 + "\n")
 
         return ''.join(lines)

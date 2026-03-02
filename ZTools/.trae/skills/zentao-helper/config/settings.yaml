@@ -9,6 +9,13 @@ zentao:
   retry_times: 3
   # 重试退避因子（秒）
   retry_backoff: 1
+  # 需求查询配置
+  story_query:
+    # 指定要查询的产品列表（为空则查询所有产品）
+    # 例如: ["都江堰系统", "点三ERP"]
+    # 默认只查询"都江堰系统"，提高查询效率
+    products:
+      - "都江堰系统"
 
 # 日志配置
 logging:

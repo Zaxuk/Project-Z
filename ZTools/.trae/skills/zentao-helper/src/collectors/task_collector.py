@@ -14,6 +14,17 @@ class TaskCollector(BaseCollector):
     任务收集器
     """
 
+    # 状态映射表
+    STATUS_MAP = {
+        'wait': '⏳ 等待',
+        'doing': '🔨 进行中',
+        'done': '✅ 已完成',
+        'pause': '⏸️ 暂停',
+        'closed': '❌ 已关闭',
+        'cancel': '🚫 已取消',
+        'unknown': '❓ 未知'
+    }
+
     def collect(self, status: Optional[str] = None, **kwargs) -> ApiResponse:
         """
         收集任务列表
@@ -58,54 +69,37 @@ class TaskCollector(BaseCollector):
         total = data.get('total', 0)
 
         if not tasks:
-            return f"暂无任务"
+            return "暂无任务"
 
-        lines = [f"任务列表 (共 {total} 个):\n"]
+        lines = [f"📋 任务列表 (共 {total} 个)\n"]
+        lines.append("=" * 80 + "\n")
 
-        # 按状态分组
-        status_groups = {
-            'wait': [],
-            'doing': [],
-            'done': [],
-            'closed': [],
-            'other': []
-        }
+        for i, task in enumerate(tasks, 1):
+            task_id = task.get('id', 0)
+            title = task.get('title', '')
+            project_name = task.get('project_name', '')
+            task_name = task.get('name', title)
+            created_at = task.get('created_at', '')
+            deadline = task.get('deadline', '')
+            url = task.get('url', '')
+            status = task.get('status', 'unknown')
 
-        for task in tasks:
-            status = task.get('status', '')
-            if status in status_groups:
-                status_groups[status].append(task)
-            else:
-                status_groups['other'].append(task)
+            # 获取状态的中文显示
+            status_display = self.STATUS_MAP.get(status, f'❓ {status}')
 
-        status_names = {
-            'wait': '待办',
-            'doing': '进行中',
-            'done': '已完成',
-            'closed': '已关闭',
-            'other': '其他'
-        }
-
-        # 显示非空组
-        for status, group_tasks in status_groups.items():
-            if not group_tasks:
-                continue
-
-            lines.append(f"\n  [{status_names[status]}] ({len(group_tasks)} 个)\n")
-
-            for task in group_tasks:
-                line = f"    #{task['id']} - {task['title']}\n"
-                line += f"      类型: {task.get('type', '')} | 优先级: {task.get('priority', 0)}\n"
-
-                if task.get('assigned_to'):
-                    line += f"      指派给: {task['assigned_to']}\n"
-
-                if task.get('estimate'):
-                    line += f"      预估: {task['estimate']}h"
-
-                if task.get('left'):
-                    line += f" | 剩余: {task['left']}h"
-
-                lines.append(line + "\n")
+            lines.append(f"{i}. 任务 #{task_id} [{status_display}]\n")
+            if project_name:
+                lines.append(f"   项目: {project_name}\n")
+            lines.append(f"   名称: {task_name}\n")
+            
+            # 添加时间和链接字段
+            if created_at:
+                lines.append(f"   创建时间: {created_at}\n")
+            if deadline:
+                lines.append(f"   截止时间: {deadline}\n")
+            if url:
+                lines.append(f"   禅道链接: {url}\n")
+            
+            lines.append("-" * 60 + "\n")
 
         return ''.join(lines)

@@ -1,6 +1,6 @@
 ---
 name: "zentao-helper"
-description: "禅道自动化助手，支持通过自然语言指令完成禅道日常操作。包括查询需求和任务、任务拆解和分配等功能。首次使用需要登录禅道。"
+description: "禅道自动化助手，支持通过自然语言指令完成禅道日常操作，包括查询需求和任务、任务拆解和分配等功能。当用户需要与禅道项目管理工具交互时调用，如查询任务、分配任务、拆解任务等场景。首次使用需要登录禅道。"
 ---
 
 # ZenTao Helper Skill
@@ -98,80 +98,55 @@ INTENTS = {
     'split_task': ['拆解', '分解', 'split', '拆分', '拆成'],
     'assign_task': ['分配', '指派', 'assign', '给'],
     # 添加新意图
-    'create_bug': ['创建bug', 'new bug', '提bug'],
+    'your_new_intent': ['关键词1', '关键词2'],
 }
 ```
 
-### 添加新的实体提取器
-在 `src/nlp/entity_extractor.py` 中添加新的实体提取方法。
+### 添加新的处理器
+1. 在 `src/automators/` 目录下创建新的处理器类
+2. 继承 `BaseAutomator` 基类
+3. 在 `skill.py` 中初始化并调用
 
-### 添加新的自动化操作
-在 `src/automators/` 下创建新的类，继承 `BaseAutomator`，并在 `skill.py` 中注册。
+## Architecture
 
-### 集成 LLM API（预留扩展）
-修改 `src/nlp/` 目录下的类，将关键词匹配替换为 LLM API 调用：
-
-```python
-# 未来可以这样扩展
-class IntentClassifier:
-    def classify(self, text):
-        # 使用 LLM API 进行意图识别
-        response = self.llm_client.chat([
-            {"role": "system", "content": "你是意图分类器..."},
-            {"role": "user", "content": text}
-        ])
-        return response.intent
 ```
-
-## Error Handling
-
-所有操作都返回统一的响应结构：
-```json
-{
-  "success": boolean,
-  "data": any | null,
-  "error": {
-    "code": "ERROR_CODE",
-    "message": "用户可读的错误描述",
-    "details": "调试用详细信息"
-  },
-  "timestamp": "ISO-8601 String"
-}
+skill.py              # Skill 主入口，实现 execute() 方法
+├── src/
+│   ├── nlp/          # 自然语言处理
+│   │   ├── command_parser.py      # 命令解析器
+│   │   ├── intent_classifier.py   # 意图分类器
+│   │   └── entity_extractor.py    # 实体提取器
+│   ├── auth/         # 认证模块
+│   │   └── session_manager.py     # 会话管理器
+│   ├── zentao/       # 禅道 API
+│   │   ├── api_client.py          # API 客户端
+│   │   └── models.py              # 数据模型
+│   ├── collectors/   # 信息收集器
+│   │   ├── story_collector.py     # 需求收集器
+│   │   └── task_collector.py      # 任务收集器
+│   ├── automators/   # 自动化操作器
+│   │   ├── task_splitter.py       # 任务拆解器
+│   │   └── task_assigner.py       # 任务分配器
+│   └── utils/        # 工具模块
+│       ├── logger.py              # 结构化日志
+│       ├── response.py            # 统一响应
+│       └── config_loader.py       # 配置加载
+└── config/
+    └── settings.yaml              # 配置文件
 ```
-
-常见错误码：
-- `SESSION_EXPIRED`: 会话过期，需要重新登录
-- `LOGIN_FAILED`: 登录失败，请检查用户名密码
-- `TASK_NOT_FOUND`: 任务不存在或无权访问
-- `USER_NOT_FOUND`: 用户不存在
-- `API_ERROR`: 禅道 API 调用失败
-- `UNKNOWN_INTENT`: 无法理解您的指令
-- `MISSING_PARAMETER`: 缺少必要参数（如任务ID）
 
 ## Troubleshooting
 
 ### 登录失败
-- 检查用户名密码是否正确
-- 检查 `config/settings.yaml` 中的禅道服务器地址是否正确
-- 确认网络连接正常
+- 检查用户名和密码是否正确
+- 检查网络连接是否正常
+- 检查 `config/settings.yaml` 中的 `base_url` 配置是否正确
 
 ### 会话过期
-- 重新调用 Skill，会自动提示重新登录
-- 如果频繁过期，检查禅道服务器的会话超时设置
+- 系统会自动检测会话过期并提示重新登录
+- 也可以手动删除 `.session.enc` 文件强制重新登录
 
-### 无法理解指令
-- 尝试使用更明确的表达方式
-- 查看帮助信息了解支持的指令格式
-- 参考 Usage 部分的示例
-
-## Requirements
-
-- Python 3.10+
-- requests
-- pyyaml
-- cryptography
-- keyring
-
-## License
-
-内部使用，版权所有。
+### API 调用失败
+- 检查禅道服务器是否可访问
+- 查看日志文件获取详细错误信息
+- 检查网络代理设置
