@@ -184,9 +184,18 @@ class ZenTaoHelperSkill:
         默认只查询已计划(planned)和已立项(projected)阶段的需求，
         除非用户明确指定了状态或要求查看所有需求
         支持过滤未创建任务的需求
+        支持按标题关键字过滤
         """
         status = entities.get('status')
         filter_no_task = entities.get('filter_no_task', False)
+        keywords = entities.get('keywords', [])
+        
+        # 如果没有从实体中提取到关键字，使用配置中的默认关键字
+        if not keywords:
+            default_keywords = self.config.get('zentao.story_query.keywords', [])
+            if default_keywords:
+                keywords = default_keywords
+                self.logger.info(f"使用配置中的默认关键字: {keywords}")
         
         # 获取所有需求
         result = self.story_collector.collect(status=status)
@@ -209,6 +218,20 @@ class ZenTaoHelperSkill:
             else:
                 # 用户指定了具体状态，按状态过滤
                 filtered_stories = stories
+            
+            # 如果有关键字，按标题关键字过滤
+            if keywords:
+                self.logger.info(f"按关键字 {keywords} 过滤需求...")
+                keyword_filtered_stories = []
+                
+                for story in filtered_stories:
+                    title = story.get('title', '')
+                    # 检查标题是否包含任一关键字（不区分大小写）
+                    if any(keyword.lower() in title.lower() for keyword in keywords):
+                        keyword_filtered_stories.append(story)
+                
+                filtered_stories = keyword_filtered_stories
+                self.logger.info(f"关键字过滤后: {len(filtered_stories)} 个需求")
             
             # 如果需要过滤未创建任务的需求
             if filter_no_task:

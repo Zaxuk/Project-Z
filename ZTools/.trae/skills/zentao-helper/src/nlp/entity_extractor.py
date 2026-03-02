@@ -222,6 +222,92 @@ class EntityExtractor:
                 return True
         return False
 
+    def extract_keywords(self, text: str) -> Optional[List[str]]:
+        """
+        提取需求标题关键字
+
+        支持格式：
+        - 包含"面板"的需求 / 包含'面板'的需求 / 包含面板
+        - 标题包含订单
+        - 关键字是首页面板
+        - 过滤面板相关的
+        - 关于面板的
+        - xxx相关的需求
+
+        Args:
+            text: 用户输入的文本
+
+        Returns:
+            关键字列表，如果未找到返回 None
+        """
+        keywords = []
+        
+        # 1. 匹配 "包含'xxx'" 或 "包含\"xxx\"" 格式（带引号的关键字）
+        quoted_pattern = r'包含["\']([^"\']+?)["\']'
+        matches = re.findall(quoted_pattern, text)
+        for match in matches:
+            keyword = match.strip()
+            if keyword and len(keyword) >= 2:
+                keywords.append(keyword)
+        
+        # 2. 匹配 "包含xxx" 格式（不带引号，但xxx后面跟着"的需求"或结束）
+        # 排除一些常见词
+        contain_pattern = r'包含([^"\'\s]{2,20})(?:的?需求|的?标题|$|\s)'
+        matches = re.findall(contain_pattern, text)
+        exclude_words = ['未创建任务', '没有任务', '任务', '需求', '查询', '过滤']
+        for match in matches:
+            keyword = match.strip()
+            if keyword and keyword not in exclude_words:
+                keywords.append(keyword)
+        
+        # 3. 匹配 "关键字是xxx" 格式
+        keyword_is_pattern = r'关键字是["\']?([^"\'\s]{2,}?)["\']?(?:的|需求|$|\s)'
+        match = re.search(keyword_is_pattern, text)
+        if match:
+            keyword = match.group(1).strip()
+            if keyword:
+                keywords.append(keyword)
+        
+        # 4. 匹配 "关于xxx的" 格式
+        about_pattern = r'关于["\']?([^"\'\s]{2,}?)["\']?的'
+        match = re.search(about_pattern, text)
+        if match:
+            keyword = match.group(1).strip()
+            if keyword:
+                keywords.append(keyword)
+        
+        # 5. 匹配 "xxx相关" 格式（但排除常见词）
+        related_pattern = r'([^\s"\']{2,20}?)相关'
+        matches = re.findall(related_pattern, text)
+        for match in matches:
+            keyword = match.strip()
+            if keyword and keyword not in exclude_words:
+                keywords.append(keyword)
+        
+        # 6. 匹配 "标题包含xxx" 格式
+        title_contain_pattern = r'标题包含["\']?([^"\'\s]{2,}?)["\']?(?:的|需求|$|\s)'
+        match = re.search(title_contain_pattern, text)
+        if match:
+            keyword = match.group(1).strip()
+            if keyword:
+                keywords.append(keyword)
+
+        # 去重并保持顺序
+        seen = set()
+        unique_keywords = []
+        for k in keywords:
+            k_lower = k.lower()
+            if k_lower not in seen:
+                seen.add(k_lower)
+                unique_keywords.append(k)
+
+        if unique_keywords:
+            if self.debug:
+                self.logger.debug(f"提取关键字: {text} -> {unique_keywords}")
+            return unique_keywords
+
+        return None
+
     def extract_all(self, text: str) -> Dict[str, any]:
         """
         提取所有实体
@@ -238,5 +324,6 @@ class EntityExtractor:
             'username': self.extract_username(text),
             'subtask_names': self.extract_subtask_names(text),
             'status': self.extract_status(text),
-            'filter_no_task': self.extract_filter_no_task(text)
+            'filter_no_task': self.extract_filter_no_task(text),
+            'keywords': self.extract_keywords(text)
         }
