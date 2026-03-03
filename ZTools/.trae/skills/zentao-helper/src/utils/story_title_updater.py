@@ -121,9 +121,13 @@ class StoryTitleUpdater:
 
     def _extract_valid_tags(self, title: str) -> List[str]:
         """
-        提取有效标签（只识别预定义的标签列表）
+        提取有效标签
 
-        从标题中提取【】括起来的内容，但只保留在 VALID_TAGS 列表中的标签
+        基于以下规则识别标签：
+        1. 标签通常在需求标题的最前面或前半部分
+        2. 标签通常是一个短语，长度一般不超过5个字符
+        3. 排除等级标签（A-/A/A+/A++/B）
+        4. 排除明显不是标签的内容（如问题描述、长文本等）
 
         Args:
             title: 需求标题
@@ -131,19 +135,46 @@ class StoryTitleUpdater:
         Returns:
             有效标签列表
         """
-        # 匹配所有【】括起来的内容
+        # 匹配所有【】括起来的内容及其位置
         pattern = r'【([^】]+)】'
-        all_tags = re.findall(pattern, title)
+        matches = list(re.finditer(pattern, title))
 
-        # 只保留预定义的有效标签
+        if not matches:
+            return []
+
+        # 计算标题长度，用于判断"前半部分"
+        title_length = len(title)
+        halfway_point = title_length // 2
+
         valid_tags = []
-        for tag in all_tags:
+        for match in matches:
+            tag = match.group(1)
+            # 获取标签在标题中的结束位置
+            tag_end_position = match.end()
+
             # 排除等级标签
             if re.match(r'^[AB][+-]*$', tag):
                 continue
-            # 只保留有效标签
-            if tag in self.VALID_TAGS:
-                valid_tags.append(tag)
+
+            # 规则1: 标签应该在标题的前半部分（结束位置不超过中点）
+            # 允许稍微超过中点，给5个字符的容错
+            if tag_end_position > halfway_point + 5:
+                continue
+
+            # 规则2: 标签长度一般不超过5个字符
+            if len(tag) > 5:
+                continue
+
+            # 规则3: 排除包含明显非标签特征的内容
+            # 排除包含标点符号、特殊字符、过长文本的
+            if re.search(r'[，。？！；：""''（）【】\(\)\[\]\{\}]', tag):
+                continue
+
+            # 排除包含英文问号的（通常是问题描述）
+            if '?' in tag or ';' in tag:
+                continue
+
+            valid_tags.append(tag)
 
         return valid_tags
 
