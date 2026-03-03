@@ -127,7 +127,13 @@ class IntentClassifier:
             'assign': 2,
             '给': 1,
             '指派给': 2,
-            '分配给': 2
+            '分配给': 2,
+            # 未分配需求相关（高权重，优先于普通分配）
+            '未分配需求': 5,
+            '未分配的需求': 5,
+            '未指派需求': 5,
+            '没有任务的需求': 5,
+            '未创建任务的需求': 5
         }
 
         for intent, keywords in self.INTENTS.items():
