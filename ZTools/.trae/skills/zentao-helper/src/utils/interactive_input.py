@@ -73,9 +73,9 @@ class InteractiveInput:
         # 生成更新后的需求标题
         from .story_title_updater import StoryTitleUpdater
         title_updater = StoryTitleUpdater()
-        updated_title = title_updater.update_title(story_title, grade, online_time)
+        updated_title = title_updater.update_title(story_title, grade, online_time, priority)
 
-        self.logger.info(f"非交互模式: 等级={grade}, 优先级={priority}, 上线时间={online_time}, 执行人={assigned_to}, 时长={task_hours}, 截止={deadline}")
+        self.logger.debug(f"非交互模式: 等级={grade}, 优先级={priority}, 上线时间={online_time}, 执行人={assigned_to}, 时长={task_hours}, 截止={deadline}")
 
         return {
             'grade': grade,
@@ -123,7 +123,7 @@ class InteractiveInput:
         # 7. 生成更新后的需求标题（用于生成任务标题，不需要单独确认）
         from .story_title_updater import StoryTitleUpdater
         title_updater = StoryTitleUpdater()
-        updated_title = title_updater.update_title(story_title, grade, online_time)
+        updated_title = title_updater.update_title(story_title, grade, online_time, priority)
 
         # 8. 确认所有信息（包含需求标题和任务标题）
         if not self._confirm_all_info(grade, priority, online_time, assigned_to, task_hours, deadline, updated_title):
@@ -375,10 +375,11 @@ class InteractiveInput:
         """
         from .story_title_updater import StoryTitleUpdater
         title_updater = StoryTitleUpdater()
-        
+
         # 生成更新后的需求标题格式（包含等级、标签、YYMMDD）
+        # 注意：这里不传priority，因为生成任务标题时不需要【紧急】标签
         updated_title = title_updater.update_title(story_title, grade, online_time)
-        
+
         # 任务标题格式：【研发】+ 更新后的需求标题
         return f"【研发】{updated_title}"
 

@@ -14,14 +14,26 @@ class StoryTitleUpdater:
     处理需求标题的格式化和更新
     """
 
+    # 预定义的有效标签列表
+    VALID_TAGS = [
+        # 小组标签
+        '特1', '特2', '特3',
+        # 版本标签
+        '星辰版', '医药版',
+        # 客户标签（示例，可根据实际情况扩展）
+        '马应龙', '国医时代',
+        # 优先级标签
+        '紧急',
+    ]
+
     def __init__(self):
         pass
 
-    def update_title(self, original_title: str, grade: str, online_time: str) -> str:
+    def update_title(self, original_title: str, grade: str, online_time: str, priority: str = None) -> str:
         """
         更新需求标题
 
-        格式：【需求等级】【标签1】【标签2】【标签N】YYMMDD 剩余原需求标题
+        格式：【需求等级】【优先级】【标签1】【标签2】【标签N】YYMMDD 剩余原需求标题
 
         注意：如果标题已经包含等级标签，会先移除所有格式化内容再重新生成
 
@@ -29,6 +41,7 @@ class StoryTitleUpdater:
             original_title: 原需求标题
             grade: 需求等级
             online_time: 需求上线时间（支持相对时间描述或日期格式）
+            priority: 优先级（如"紧急"），如果是紧急需求会添加【紧急】标签
 
         Returns:
             更新后的需求标题
@@ -39,13 +52,18 @@ class StoryTitleUpdater:
         # 1. 提取原始需求标题（去除所有格式化内容）
         base_title = self._extract_base_title(original_title)
 
-        # 2. 提取标签（原需求标题中用【】括起来的部分，但排除等级标签）
-        tags = self._extract_tags_excluding_grade(original_title, grade)
+        # 2. 提取有效标签（只识别预定义的标签列表）
+        tags = self._extract_valid_tags(original_title)
 
-        # 3. 将上线时间转换为 YYMMDD 格式
+        # 3. 如果是紧急需求，添加【紧急】标签
+        if priority and '紧急' in priority:
+            if '紧急' not in tags:
+                tags.insert(0, '紧急')  # 插入到最前面
+
+        # 4. 将上线时间转换为 YYMMDD 格式
         formatted_date = self._format_online_time(online_time)
 
-        # 4. 构建新标题
+        # 5. 构建新标题
         new_title = f"【{grade}】"
 
         # 添加标签
@@ -100,6 +118,34 @@ class StoryTitleUpdater:
         tags = [tag for tag in all_tags if not re.match(grade_pattern, tag)]
 
         return tags
+
+    def _extract_valid_tags(self, title: str) -> List[str]:
+        """
+        提取有效标签（只识别预定义的标签列表）
+
+        从标题中提取【】括起来的内容，但只保留在 VALID_TAGS 列表中的标签
+
+        Args:
+            title: 需求标题
+
+        Returns:
+            有效标签列表
+        """
+        # 匹配所有【】括起来的内容
+        pattern = r'【([^】]+)】'
+        all_tags = re.findall(pattern, title)
+
+        # 只保留预定义的有效标签
+        valid_tags = []
+        for tag in all_tags:
+            # 排除等级标签
+            if re.match(r'^[AB][+-]*$', tag):
+                continue
+            # 只保留有效标签
+            if tag in self.VALID_TAGS:
+                valid_tags.append(tag)
+
+        return valid_tags
 
     def _format_online_time(self, online_time: str) -> str:
         """
