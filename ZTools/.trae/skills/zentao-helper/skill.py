@@ -203,12 +203,20 @@ class ZenTaoHelperSkill:
 
     def _handle_query_stories(self, entities: dict) -> ApiResponse:
         """处理查询需求意图
-        
+
         默认只查询已计划(planned)和已立项(projected)阶段的需求，
         除非用户明确指定了状态或要求查看所有需求
         支持过滤未创建任务的需求
         支持按标题关键字过滤
         """
+        # 首先验证会话是否有效
+        if not self.api_client.verify_session():
+            self.logger.warning("会话已过期，需要重新登录")
+            return ApiResponse.error_response(
+                ErrorCode.AUTH_ERROR,
+                "会话已过期，请使用 '登录禅道' 命令重新登录"
+            )
+
         status = entities.get('status')
         filter_no_task = entities.get('filter_no_task', False)
         keywords = entities.get('keywords', [])
