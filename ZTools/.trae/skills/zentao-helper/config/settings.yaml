@@ -54,9 +54,11 @@ zentao:
 # 日志配置
 logging:
   # 日志级别: DEBUG, INFO, WARNING, ERROR, CRITICAL
-  level: "INFO"
+  # 生产环境建议用 WARNING，只显示警告和错误
+  # 调试时可改为 INFO 或 DEBUG
+  level: "WARNING"
   # 日志格式: json, text
-  format: "json"
+  format: "text"
 
 # NLP 配置
 nlp:
