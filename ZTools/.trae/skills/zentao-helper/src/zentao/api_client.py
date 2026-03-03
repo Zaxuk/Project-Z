@@ -609,45 +609,55 @@ class ZentaoApiClient:
 
     def get_story_task_count(self, story_id: int) -> int:
         """
-        获取需求关联的任务数量
-        
+        获取需求关联的有效任务数量（排除已删除的任务）
+
         Args:
             story_id: 需求ID
-            
+
         Returns:
-            任务数量
+            有效任务数量（未删除的）
         """
         try:
             url = f"{self.base_url}/story-view-{story_id}.json"
             response = self.session.get(url, timeout=self.timeout)
             response.encoding = 'utf-8'
-            
+
             if response.status_code == 200:
                 try:
                     result = response.json()
                     if result.get('status') == 'success' and 'data' in result:
                         story_data = json.loads(result['data'])
-                        
+
                         if 'story' in story_data:
                             story = story_data['story']
                             tasks = story.get('tasks', {})
-                            
+
                             # tasks 是字典格式: {project_id: [task_list]}
                             if isinstance(tasks, dict):
                                 total_tasks = 0
                                 for project_tasks in tasks.values():
                                     if isinstance(project_tasks, list):
-                                        total_tasks += len(project_tasks)
+                                        # 过滤掉已删除的任务（deleted 字段为 '1' 表示已删除）
+                                        valid_tasks = [
+                                            task for task in project_tasks
+                                            if task.get('deleted') != '1' and task.get('deleted') != 1
+                                        ]
+                                        total_tasks += len(valid_tasks)
                                 return total_tasks
                             elif isinstance(tasks, list):
-                                return len(tasks)
-                            
+                                # 过滤掉已删除的任务
+                                valid_tasks = [
+                                    task for task in tasks
+                                    if task.get('deleted') != '1' and task.get('deleted') != 1
+                                ]
+                                return len(valid_tasks)
+
                 except Exception as e:
                     self.logger.warning(f"解析需求 {story_id} 任务信息失败: {str(e)}")
-                    
+
         except Exception as e:
             self.logger.warning(f"获取需求 {story_id} 任务信息失败: {str(e)}")
-        
+
         return 0
 
     def get_story(self, story_id: int) -> ApiResponse:
