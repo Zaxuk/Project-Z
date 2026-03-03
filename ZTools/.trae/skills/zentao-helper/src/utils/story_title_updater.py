@@ -167,7 +167,7 @@ class StoryTitleUpdater:
 
             # 规则3: 排除包含明显非标签特征的内容
             # 排除包含标点符号、特殊字符、过长文本的
-            if re.search(r'[，。？！；：""''（）【】()\[\]{}]', tag):
+            if re.search(r'[，。？！；：""''（）【】()\x5b\x5d{}]', tag):
                 continue
 
             # 排除包含英文问号的（通常是问题描述）
