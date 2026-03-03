@@ -118,10 +118,12 @@ class TaskSplitter(BaseAutomator):
 
         # 步骤2.5: 评审需求（变更后状态会变成"已变更"，需要评审改回"已激活"）
         self.logger.debug(f"正在评审需求 #{story_id}")
+        # 注意：评审时不修改指派人，保持原指派人不变
+        # 如果传入 assigned_to，需求会被指派给新的人，导致原责任人看不到需求
         review_result = self.api_client.review_story(
             int(story_id),
             result='pass',
-            assigned_to=task_info.get('assigned_to'),
+            assigned_to=None,  # 不修改指派人
             estimate=task_info.get('task_hours'),
             comment='需求已拆解并评审通过，准备开发'
         )
