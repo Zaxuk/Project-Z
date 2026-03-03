@@ -1,0 +1,306 @@
+# Cursor AI 编码规范
+
+## 项目概述
+
+- **项目名称**: ZTools
+- **项目类型**: 日常办公自动化工具集（Trae Skill 格式）
+- **开发语言**: Python 3.13+
+- **架构模式**: Skill-based Architecture
+
+## 核心原则
+
+### 1. 文档即真理
+- 代码只是文档的可执行版本
+- 当代码逻辑与设计文档冲突时，以文档为准
+- 任何逻辑变更必须先修改文档，再修改代码
+
+### 2. 上下文优先
+- 在编写任何具体功能前，必须确保充分理解业务上下文
+- 不要猜测，有歧义时必须向人类开发者提问
+
+### 3. 防御性编程
+- 假设第三方服务是不稳定的
+- 假设数据格式可能变更
+- 假设响应是延迟的
+
+## 编码规范
+
+### Python 代码规范
+
+#### 命名规范
+- **类名**: PascalCase（如 `TaskSplitter`, `ApiClient`）
+- **函数名**: snake_case（如 `get_task_list`, `parse_command`）
+- **变量名**: snake_case（如 `task_id`, `user_name`）
+- **常量**: UPPER_SNAKE_CASE（如 `MAX_RETRY_TIMES`, `DEFAULT_TIMEOUT`）
+- **私有成员**: 前缀 `_`（如 `_internal_method`, `_private_var`）
+
+#### 类型注解
+- 所有函数参数和返回值必须添加类型注解
+- 使用 `Optional`, `List`, `Dict` 等类型提示
+
+```python
+from typing import Optional, List, Dict, Any
+
+def get_task(self, task_id: int) -> Optional[Dict[str, Any]]:
+    """获取任务详情"""
+    pass
+```
+
+#### 文档字符串
+- 所有公共类和方法必须包含文档字符串
+- 使用 Google 风格的文档字符串格式
+
+```python
+def execute(self, parent_task_id: str, subtask_names: List[str]) -> ApiResponse:
+    """
+    执行任务拆解
+
+    Args:
+        parent_task_id: 父任务ID
+        subtask_names: 子任务名称列表
+
+    Returns:
+        拆解结果
+
+    Raises:
+        ValueError: 当参数无效时
+    """
+    pass
+```
+
+#### 错误处理
+- 使用自定义异常类
+- 所有 API 调用必须包含 try-except 块
+- 错误信息必须包含上下文（如任务ID、用户名等）
+
+```python
+try:
+    result = self.api_client.get_task(task_id)
+except ZentaoAPIError as e:
+    self.logger.error(f"获取任务失败: task_id={task_id}, error={e}")
+    raise TaskNotFoundError(f"任务 #{task_id} 不存在") from e
+```
+
+### 项目结构规范
+
+#### 目录组织
+```
+.trae/skills/{skill-name}/
+├── skill.py              # Skill 主入口
+├── SKILL.md              # Skill 文档
+├── requirements.txt      # Python 依赖
+├── config/
+│   └── settings.yaml     # 配置文件
+└── src/                  # 源代码
+    ├── __init__.py
+    ├── auth/             # 认证模块
+    ├── zentao/           # 第三方 API
+    ├── nlp/              # 自然语言处理
+    ├── collectors/       # 信息收集器
+    ├── automators/       # 自动化操作器
+    └── utils/            # 工具模块
+```
+
+#### 模块导入顺序
+1. 标准库
+2. 第三方库
+3. 项目内部模块
+
+```python
+# 标准库
+import os
+import json
+from typing import Optional, List
+
+# 第三方库
+import requests
+import yaml
+
+# 项目内部模块
+from .utils.logger import get_logger
+from .zentao.api_client import ZentaoApiClient
+```
+
+### 配置管理
+
+#### 配置文件规范
+- 使用 YAML 格式
+- 配置项必须有注释说明
+- 敏感信息（密码、密钥）不存储在配置文件中
+
+```yaml
+# 禅道配置
+zentao:
+  base_url: "http://zentao.diansan.com/"  # 服务器地址
+  timeout: 30                              # 超时时间（秒）
+  retry_times: 3                           # 重试次数
+```
+
+#### 配置加载
+- 使用单例模式管理配置
+- 配置变更时自动重载
+- 提供默认值和类型检查
+
+### 日志规范
+
+#### 日志格式
+- 使用结构化 JSON 日志
+- 包含 trace_id 用于链路追踪
+- 关键节点必须打日志
+
+```python
+logger.info("开始执行任务拆解", extra={
+    "trace_id": trace_id,
+    "task_id": task_id,
+    "subtask_count": len(subtask_names)
+})
+```
+
+#### 日志级别
+- **DEBUG**: 调试信息，仅在开发环境使用
+- **INFO**: 关键业务流程节点
+- **WARNING**: 非致命错误，业务可继续
+- **ERROR**: 致命错误，需要人工介入
+
+### 测试规范
+
+#### 单元测试
+- 测试覆盖率 > 80%
+- 测试文件命名：`test_{module_name}.py`
+- 使用 pytest 框架
+
+#### 集成测试
+- 使用 Mock 测试第三方 API
+- 严禁在测试中真实调用外部付费 API
+
+### API 设计规范
+
+#### 响应格式
+所有内部 API 必须返回统一的 JSON 结构：
+
+```json
+{
+  "success": boolean,
+  "data": any | null,
+  "error": {
+    "code": "ERROR_CODE_UPPERCASE",
+    "message": "用户可读的错误描述",
+    "details": "调试用详细信息"
+  },
+  "timestamp": "ISO-8601 String"
+}
+```
+
+#### 错误码规范
+- 使用大写字母和下划线
+- 按模块分类（如 AUTH_*, TASK_*, API_*）
+
+```python
+class ErrorCode:
+    # 认证错误
+    AUTH_REQUIRED = "AUTH_REQUIRED"
+    AUTH_FAILED = "AUTH_FAILED"
+    SESSION_EXPIRED = "SESSION_EXPIRED"
+    
+    # 任务错误
+    TASK_NOT_FOUND = "TASK_NOT_FOUND"
+    TASK_SPLIT_FAILED = "TASK_SPLIT_FAILED"
+```
+
+## 文档规范
+
+### 文档更新触发点
+
+以下情况必须更新文档：
+
+1. **业务逻辑变更**
+   - 更新 `docs/design/sequence_diagrams/` 下的时序图
+   - 更新 `docs/spec/functional.md`
+
+2. **数据结构变更**
+   - 更新 `docs/design/database_schema.md`
+   - 更新 API 文档
+
+3. **引入新依赖**
+   - 更新 `README.md` 中的环境配置
+
+4. **完成里程碑**
+   - 更新 `docs/changelog.md`
+   - 更新 `docs/current_status.md`
+
+### 文档格式
+- 使用 Markdown 格式
+- 代码块必须指定语言
+- 使用 Mermaid 绘制图表
+
+## Git 提交规范
+
+### 提交信息格式
+```
+<type>: <subject>
+
+<body>
+
+<footer>
+```
+
+### 类型说明
+- **feat**: 新功能
+- **fix**: 修复 bug
+- **docs**: 文档更新
+- **style**: 代码格式（不影响功能）
+- **refactor**: 重构
+- **test**: 测试相关
+- **chore**: 构建过程或辅助工具的变动
+
+### 示例
+```
+feat: 添加任务拆解交互式输入功能
+
+- 新增 InteractiveInput 类处理用户输入
+- 支持需求等级、优先级、上线时间等参数
+- 添加配置项支持默认值设置
+
+Closes #123
+```
+
+## 安全规范
+
+1. **密码管理**
+   - 密码不存储在代码或配置文件中
+   - 使用系统 keyring 加密存储会话信息
+   - 密码仅在内存中存在
+
+2. **API 密钥**
+   - 使用环境变量或密钥管理服务
+   - 定期轮换密钥
+
+3. **日志脱敏**
+   - 日志中不包含敏感信息（密码、密钥、个人信息）
+   - 使用占位符替换敏感字段
+
+## 性能规范
+
+1. **API 调用**
+   - 使用连接池复用连接
+   - 实现指数退避重试机制
+   - 设置合理的超时时间
+
+2. **数据处理**
+   - 大数据集使用生成器
+   - 避免内存中存储大量数据
+   - 使用缓存减少重复计算
+
+## 审查清单
+
+在提交代码前，请确认：
+
+- [ ] 代码符合命名规范
+- [ ] 添加了类型注解
+- [ ] 包含文档字符串
+- [ ] 错误处理完善
+- [ ] 添加了必要的日志
+- [ ] 更新了相关文档
+- [ ] 通过了单元测试
+- [ ] 没有硬编码的敏感信息
+- [ ] Git 提交信息符合规范

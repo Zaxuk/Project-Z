@@ -100,6 +100,8 @@ graph TB
         Logger[Logger<br/>结构化日志]
         Response[ApiResponse<br/>统一响应]
         ConfigLoader[ConfigLoader<br/>配置加载]
+        InteractiveInput[InteractiveInput<br/>交互式输入]
+        StoryTitleUpdater[StoryTitleUpdater<br/>需求标题更新器]
     end
 
     SkillPy --> CommandParser
@@ -131,10 +133,15 @@ graph TB
     SessionManager --> ConfigLoader
     ZentaoApiClient --> ConfigLoader
 
+    TaskSplitter --> InteractiveInput
+    TaskSplitter --> StoryTitleUpdater
+
     style SkillPy fill:#e1f5ff
     style CommandParser fill:#fff4e6
     style SessionManager fill:#ffe6e6
     style ZentaoApiClient fill:#e8f5e9
+    style InteractiveInput fill:#f3e5f5
+    style StoryTitleUpdater fill:#f3e5f5
 ```
 
 ### 3.2 核心模块说明
@@ -154,11 +161,15 @@ graph TB
 #### 3.2.4 业务层
 - **Collectors**：信息收集基类和具体实现（需求、任务）
 - **Automators**：自动化操作基类和具体实现（任务拆解、分配）
+  - **TaskSplitter**：支持交互式输入，自动更新需求标题
+  - **TaskAssigner**：任务分配功能
 
 #### 3.2.5 工具层
 - **Logger**：符合 Manifesto 要求的结构化 JSON 日志
 - **ApiResponse**：统一的 API 响应结构
 - **ConfigLoader**：配置文件加载和管理
+- **InteractiveInput**：交互式输入处理器，收集任务创建信息
+- **StoryTitleUpdater**：需求标题更新器，自动格式化需求标题
 
 ## 4. 数据流
 
@@ -193,6 +204,8 @@ sequenceDiagram
     participant Skill as Skill
     participant Parser as CommandParser
     participant Splitter as TaskSplitter
+    participant Input as InteractiveInput
+    participant TitleUpdater as StoryTitleUpdater
     participant API as ZentaoApiClient
     participant Zentao as 禅道服务器
 
@@ -200,15 +213,76 @@ sequenceDiagram
     Skill->>Parser: 解析命令
     Parser-->>Skill: intent=split_task, task_id=123, subtasks=[A,B]
     Skill->>Splitter: execute()
+    
+    Splitter->>Input: collect_task_info()
+    Input-->>User: 提示输入需求等级
+    User-->>Input: A+
+    Input-->>User: 提示输入优先级
+    User-->>Input: 紧急
+    Input-->>User: 提示输入上线时间
+    User-->>Input: 下周周一
+    Input-->>User: 提示输入执行人
+    User-->>Input: 张三
+    Input-->>User: 提示输入任务时长
+    User-->>Input: 4
+    Input-->>User: 提示输入截至时间
+    User-->>Input: 下周周五
+    Input-->>User: 确认信息
+    User-->>Input: 确认
+    Input-->>Splitter: 任务信息
+    
+    Splitter->>TitleUpdater: update_title()
+    TitleUpdater-->>Splitter: 更新后的标题
+    
     Splitter->>API: get_task(123)
     API-->>Splitter: 任务详情
+    
     loop 每个子任务
         Splitter->>API: create_task(parent=123, name=...)
         API->>Zentao: POST /api.php/v1/tasks
         Zentao-->>API: 创建成功
     end
+    
     Splitter-->>Skill: 拆解结果
     Skill-->>User: 显示拆解结果
+```
+
+### 4.3 交互式输入流程
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Input as InteractiveInput
+    participant Config as ConfigLoader
+
+    Input->>Config: 加载默认配置
+    Config-->>Input: default_assigned_to, grade_hours等
+    
+    Input-->>User: 显示需求等级选项（A-/A/A+/A++/B）
+    User-->>Input: 选择 A+
+    
+    Input-->>User: 显示优先级选项（紧急/非紧急）
+    User-->>Input: 选择 紧急
+    
+    Input-->>User: 显示上线时间选项（下周周一至周五）
+    User-->>Input: 选择 下周周一
+    
+    Input-->>User: 提示输入执行人（默认值：空）
+    User-->>Input: 输入 张三
+    
+    Input-->>User: 提示输入任务时长（默认值：4小时，根据A+等级）
+    User-->>Input: 输入 4
+    
+    Input-->>User: 提示输入截至时间（默认值：下周周五，因为时长=4小时）
+    User-->>Input: 输入 下周周五
+    
+    Input-->>User: 提示输入任务标题（默认值：【任务】当前需求标题）
+    User-->>Input: 输入 自定义标题
+    
+    Input-->>User: 显示所有信息，确认创建？
+    User-->>Input: 确认
+    
+    Input-->>Input: 返回任务信息字典
 ```
 
 ## 5. 安全设计
@@ -254,20 +328,85 @@ nlp:
     model: "gpt-4"
 ```
 
+### 6.5 添加新 Skill
+在 `.trae/skills/` 目录下创建新的 Skill：
+
+```
+.trae/skills/
+├── zentao-helper/          # 现有 Skill
+└── new-skill/              # 新 Skill
+    ├── skill.py
+    ├── SKILL.md
+    ├── requirements.txt
+    ├── config/
+    │   └── settings.yaml
+    └── src/
+        └── ...
+```
+
+每个 Skill 独立管理依赖和配置，通过 Trae IDE 统一调用。
+
 ## 7. 部署架构
+
+### 7.1 项目结构
 
 ```
 ZTools/
-├── .trae/
+├── .trae/                          # Trae Skill 目录
 │   └── skills/
-│       └── zentao-helper/     # 禅道自动化 Skill
-│           ├── skill.py        # Skill 入口
-│           ├── SKILL.md        # Skill 文档
-│           ├── requirements.txt # 依赖
-│           ├── config/         # 配置
-│           └── src/            # 源代码
-└── docs/                       # 项目文档
+│       └── zentao-helper/          # 禅道自动化 Skill
+│           ├── skill.py             # Skill 入口
+│           ├── SKILL.md             # Skill 文档
+│           ├── requirements.txt     # 依赖
+│           ├── config/              # 配置
+│           │   └── settings.yaml
+│           └── src/                 # 源代码
+│               ├── auth/
+│               ├── zentao/
+│               ├── nlp/
+│               ├── collectors/
+│               ├── automators/
+│               └── utils/
+│
+├── docs/                            # 项目文档
+│   ├── spec/                        # 需求规格
+│   ├── design/                      # 设计文档
+│   │   └── architecture.md
+│   ├── changelog.md
+│   └── current_status.md
+│
+├── scripts/                         # 运维脚本
+│   ├── setup.sh                     # 初始化脚本（Linux/Mac）
+│   ├── setup.ps1                    # 初始化脚本（Windows）
+│   ├── verify_deployment.sh         # 部署验证（Linux/Mac）
+│   └── verify_deployment.ps1        # 部署验证（Windows）
+│
+├── .cursorrules                     # AI 编码规范
+├── AGENTS.md                        # 项目基本法
+└── README.md                        # 项目入口
 ```
+
+### 7.2 部署流程
+
+1. **环境准备**
+   - Python 3.13+
+   - Trae IDE
+   - Git
+
+2. **安装步骤**
+   ```bash
+   git clone https://github.com/Zaxuk/Project-Z.git
+   cd "Project Z/ZTools"
+   ./scripts/setup.sh  # 或 setup.ps1（Windows）
+   ```
+
+3. **配置检查**
+   ```bash
+   ./scripts/verify_deployment.sh  # 或 verify_deployment.ps1（Windows）
+   ```
+
+4. **使用**
+   在 Trae IDE 中直接使用自然语言指令调用 Skill。
 
 ## 8. 技术债务
 
@@ -279,8 +418,63 @@ ZTools/
 
 ## 9. 架构决策记录 (ADR)
 
-| ADR ID | 决策内容 | 日期 |
-|--------|----------|------|
-| ADR-001 | 选择 Python 作为主要开发语言 | 2026-02-28 |
-| ADR-002 | 使用关键词匹配实现 NLP，预留 LLM 扩展 | 2026-02-28 |
-| ADR-003 | 使用系统 keyring 存储加密密钥 | 2026-02-28 |
+| ADR ID | 决策内容 | 日期 | 状态 |
+|--------|----------|------|------|
+| ADR-001 | 选择 Python 作为主要开发语言 | 2026-02-28 | ✅ 已采纳 |
+| ADR-002 | 使用关键词匹配实现 NLP，预留 LLM 扩展 | 2026-02-28 | ✅ 已采纳 |
+| ADR-003 | 使用系统 keyring 存储加密密钥 | 2026-02-28 | ✅ 已采纳 |
+| ADR-004 | 采用 Trae Skill 架构，Skill 放在 .trae/skills/ 目录 | 2026-02-28 | ✅ 已采纳 |
+| ADR-005 | 任务拆解支持交互式输入和自动标题更新 | 2026-03-03 | ✅ 已采纳 |
+
+## 10. Skill 架构说明
+
+### 10.1 为什么使用 Trae Skill 架构？
+
+1. **模块化**：每个 Skill 独立开发和部署
+2. **可扩展**：易于添加新功能
+3. **自然语言交互**：用户通过自然语言调用，无需记忆命令
+4. **IDE 集成**：与 Trae IDE 深度集成，提供流畅体验
+
+### 10.2 Skill 目录放在 .trae/skills/ 下的原因
+
+根据 Trae IDE 的 Skill 规范：
+- Skill 必须放在 `.trae/skills/` 目录下
+- 每个 Skill 是一个独立的 Python 包
+- Trae IDE 自动识别并加载这些 Skill
+
+### 10.3 多 Skill 管理
+
+如果未来需要添加更多自动化工具：
+
+```
+.trae/skills/
+├── zentao-helper/          # 禅道自动化
+├── email-assistant/        # 邮件助手
+├── calendar-helper/        # 日历助手
+└── document-generator/     # 文档生成器
+```
+
+每个 Skill：
+- 独立的依赖管理（requirements.txt）
+- 独立的配置（config/settings.yaml）
+- 独立的文档（SKILL.md）
+- 共享项目级文档（docs/）
+
+### 10.4 Skill 与项目的关系
+
+- **项目级**（ZTools/）：
+  - 整体架构文档
+  - 开发规范（.cursorrules, AGENTS.md）
+  - 运维脚本（scripts/）
+  - 项目入口（README.md）
+
+- **Skill 级**（.trae/skills/{skill-name}/）：
+  - 具体功能实现
+  - Skill 专属文档
+  - 独立依赖
+  - 独立配置
+
+这种分层结构确保：
+- 项目整体一致性
+- Skill 之间松耦合
+- 易于维护和扩展
