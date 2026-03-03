@@ -1,72 +1,32 @@
 @echo off
-title 禅道自动化工具
-
-cd /d "%~dp0"
-
-if exist "..\..\..\..\venv\Scripts\activate.bat" (
-    call "..\..\..\..\venv\Scripts\activate.bat"
-) else if exist "venv\Scripts\activate.bat" (
-    call "venv\Scripts\activate.bat"
-)
+chcp 936 >nul
+title ZenTao Helper - 禅道自动化工具
 
 :MENU
+cls
 echo.
 echo ============================================
-echo  禅道自动化工具
+echo   ZenTao Helper - 禅道自动化工具
 echo ============================================
 echo.
-echo  [1] 查看我的需求
-echo  [2] 查看未分配的需求
-echo  [3] 查看我的任务
-echo  [4] 交互式拆解需求
-echo.
+echo  [1] 交互式拆解需求
+echo  [2] 查看我的需求
+echo  [3] 查看未分配的需求
+echo  [4] 查看我的任务
+echo  [5] 重新登录
 echo  [0] 退出
 echo.
 echo ============================================
 echo.
 
-set /p CHOICE="请选择功能 (0-4): "
+set /p choice="请选择操作 (0-5): "
 
-if "%CHOICE%"=="1" goto VIEW_STORIES
-if "%CHOICE%"=="2" goto VIEW_UNASSIGNED
-if "%CHOICE%"=="3" goto VIEW_TASKS
-if "%CHOICE%"=="4" goto SPLIT_STORY
-if "%CHOICE%"=="0" goto EXIT
-
-echo 无效选择，请重新输入
-goto MENU
-
-:VIEW_STORIES
-echo.
-echo ============================================
-echo  查看我的需求
-echo ============================================
-echo.
-python skill.py 查看我的需求
-echo.
-pause
-goto MENU
-
-:VIEW_UNASSIGNED
-echo.
-echo ============================================
-echo  查看未分配的需求
-echo ============================================
-echo.
-python skill.py 查看未分配的需求
-echo.
-pause
-goto MENU
-
-:VIEW_TASKS
-echo.
-echo ============================================
-echo  查看我的任务
-echo ============================================
-echo.
-python skill.py 查看我的任务
-echo.
-pause
+if "%choice%"=="1" goto SPLIT_STORY
+if "%choice%"=="2" goto QUERY_MY_STORIES
+if "%choice%"=="3" goto QUERY_UNASSIGNED
+if "%choice%"=="4" goto QUERY_MY_TASKS
+if "%choice%"=="5" goto RELOGIN
+if "%choice%"=="0" goto EXIT
 goto MENU
 
 :SPLIT_STORY
@@ -104,20 +64,20 @@ if "%GRADE_CHOICE%"=="" set GRADE=A+
 
 :INPUT_PRIORITY
 echo.
-echo 请选择优先级 (默认: 非紧急):
-echo   1. 紧急
-echo   2. 非紧急 (默认)
+echo 是否紧急 (默认: 否):
+echo   1. 否 (默认)
+echo   2. 是
 echo   b. 返回上一步
-set /p PRIORITY_CHOICE="选择 (1-2/b, 直接回车=非紧急): "
+set /p PRIORITY_CHOICE="选择 (1-2/b, 直接回车=否): "
 
 if /i "%PRIORITY_CHOICE%"=="b" goto INPUT_GRADE
-if "%PRIORITY_CHOICE%"=="1" set PRIORITY=紧急
-if "%PRIORITY_CHOICE%"=="2" set PRIORITY=非紧急
+if "%PRIORITY_CHOICE%"=="1" set PRIORITY=非紧急
+if "%PRIORITY_CHOICE%"=="2" set PRIORITY=紧急
 if "%PRIORITY_CHOICE%"=="" set PRIORITY=非紧急
 
 :INPUT_ONLINE_TIME
 echo.
-echo 请选择上线时间 (默认: 下下周周一):
+echo 请选择需求上线时间 (默认: 下下周周一):
 echo   1. 下周周一
 echo   2. 下周周四
 echo   3. 下下周周一 (默认)
@@ -140,7 +100,7 @@ if "%ASSIGNED_TO%"=="" set ASSIGNED_TO=zhuxu
 
 :INPUT_HOURS
 echo.
-set /p HOURS="请输入任务时长，小时 (默认: 8, 输入 b 返回): "
+set /p HOURS="请输入任务时长/小时 (默认: 8, 输入 b 返回): "
 if /i "%HOURS%"=="b" goto INPUT_ASSIGNED_TO
 if "%HOURS%"=="" set HOURS=8
 
@@ -164,7 +124,7 @@ echo  确认信息
 echo ============================================
 echo   需求ID: %STORY_ID%
 echo   需求等级: %GRADE%
-echo   优先级: %PRIORITY%
+echo   是否紧急: %PRIORITY%
 echo   上线时间: %ONLINE_TIME%
 echo   执行人: %ASSIGNED_TO%
 echo   任务时长: %HOURS% 小时
@@ -177,23 +137,70 @@ echo  [B] 返回修改
 echo.
 
 set /p CONFIRM="请选择 (Y/N/B): "
-if /i "%CONFIRM%"=="y" goto EXECUTE
-if /i "%CONFIRM%"=="n" goto MENU
-if /i "%CONFIRM%"=="b" goto INPUT_DEADLINE
 
-echo 无效选择，请重新输入
+if /i "%CONFIRM%"=="Y" goto EXECUTE_SPLIT
+if /i "%CONFIRM%"=="N" goto MENU
+if /i "%CONFIRM%"=="B" goto INPUT_DEADLINE
 goto CONFIRM
 
-:EXECUTE
+:EXECUTE_SPLIT
 echo.
-python skill.py 拆解需求#%STORY_ID% --grade %GRADE% --priority %PRIORITY% --online-time "%ONLINE_TIME%" --assigned-to %ASSIGNED_TO% --hours %HOURS% --deadline "%DEADLINE%"
+echo 正在拆解需求 #%STORY_ID%...
+echo.
+
+python -c "import sys; sys.path.insert(0, 'src'); from skill import ZenTaoHelperSkill; skill = ZenTaoHelperSkill(); result = skill.execute('拆解需求#%STORY_ID% 需求等级: %GRADE% 需求优先级: %PRIORITY% 需求上线时间: %ONLINE_TIME% 任务执行人: %ASSIGNED_TO% 任务时长: %HOURS% 小时 任务截止时间: %DEADLINE%'); print(result.get('message', '执行完成'))"
+
+echo.
+pause
+goto MENU
+
+:QUERY_MY_STORIES
+echo.
+echo 正在查询我的需求...
+echo.
+
+python -c "import sys; sys.path.insert(0, 'src'); from skill import ZenTaoHelperSkill; skill = ZenTaoHelperSkill(); result = skill.execute('查看我的需求'); print(result.get('message', '执行完成'))"
+
+echo.
+pause
+goto MENU
+
+:QUERY_UNASSIGNED
+echo.
+echo 正在查询未分配的需求...
+echo.
+
+python -c "import sys; sys.path.insert(0, 'src'); from skill import ZenTaoHelperSkill; skill = ZenTaoHelperSkill(); result = skill.execute('查看未分配的需求'); print(result.get('message', '执行完成'))"
+
+echo.
+pause
+goto MENU
+
+:QUERY_MY_TASKS
+echo.
+echo 正在查询我的任务...
+echo.
+
+python -c "import sys; sys.path.insert(0, 'src'); from skill import ZenTaoHelperSkill; skill = ZenTaoHelperSkill(); result = skill.execute('查看我的任务'); print(result.get('message', '执行完成'))"
+
+echo.
+pause
+goto MENU
+
+:RELOGIN
+echo.
+echo 正在重新登录...
+echo.
+
+python -c "import sys; sys.path.insert(0, 'src'); from skill import ZenTaoHelperSkill; skill = ZenTaoHelperSkill(); result = skill.execute('登录禅道'); print(result.get('message', '执行完成'))"
+
 echo.
 pause
 goto MENU
 
 :EXIT
 echo.
-echo 感谢使用，再见!
+echo 感谢使用 ZenTao Helper!
 echo.
-timeout /t 2 >nul
+pause
 exit /b 0

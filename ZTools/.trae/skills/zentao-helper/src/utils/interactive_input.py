@@ -172,17 +172,17 @@ class InteractiveInput:
 
     def _input_priority(self) -> str:
         """
-        输入需求优先级
+        输入需求优先级（是否紧急）
 
         Returns:
             需求优先级（非紧急/紧急），默认非紧急
         """
         while True:
             try:
-                print("\n需求优先级：")
-                print("  1. 非紧急 (默认)")
-                print("  2. 紧急")
-                choice = input("请选择 (1-2, 直接回车使用默认非紧急): ").strip()
+                print("\n是否紧急：")
+                print("  1. 否 (默认)")
+                print("  2. 是")
+                choice = input("请选择 (1-2, 直接回车使用默认否): ").strip()
 
                 if not choice or choice == '1':
                     return '非紧急'
