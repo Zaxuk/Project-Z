@@ -55,10 +55,15 @@ class StoryTitleUpdater:
         # 2. 提取有效标签（只识别预定义的标签列表）
         tags = self._extract_valid_tags(original_title)
 
-        # 3. 如果是紧急需求，添加【紧急】标签
+        # 3. 处理【紧急】标签
         if priority and '紧急' in priority:
+            # 用户选择紧急，添加【紧急】标签
             if '紧急' not in tags:
                 tags.insert(0, '紧急')  # 插入到最前面
+        else:
+            # 用户选择非紧急，移除【紧急】标签（如果存在）
+            if '紧急' in tags:
+                tags.remove('紧急')
 
         # 4. 将上线时间转换为 YYMMDD 格式
         formatted_date = self._format_online_time(online_time)
