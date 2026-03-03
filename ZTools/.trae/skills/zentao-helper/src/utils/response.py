@@ -78,6 +78,7 @@ class ErrorCode:
     INVALID_PARAMETER = "INVALID_PARAMETER"
     PERMISSION_DENIED = "PERMISSION_DENIED"
     TIMEOUT = "TIMEOUT"
+    USER_CANCELLED = "USER_CANCELLED"
 
 
 # 常用错误消息
@@ -95,3 +96,4 @@ class ErrorMessage:
     INVALID_PARAMETER = "参数格式不正确"
     PERMISSION_DENIED = "没有权限执行此操作"
     TIMEOUT = "请求超时"
+    USER_CANCELLED = "用户已取消操作"

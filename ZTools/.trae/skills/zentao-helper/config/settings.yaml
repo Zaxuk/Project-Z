@@ -21,6 +21,31 @@ zentao:
     # 为空列表表示不过滤，查询所有需求
     # 例如: ["面板", "订单"] 表示只查询标题包含"面板"或"订单"的需求
     keywords: ["特2"]
+  # 任务创建配置
+  task_creation:
+    # 默认任务执行人（为空则不设置）
+    default_assigned_to: ""
+    # 需求等级对应的任务时长（小时）
+    # A-: 1小时, A: 2小时, A+: 4小时, A++: 8小时, B: 空（需用户输入）
+    grade_hours:
+      "A-": 1
+      "A": 2
+      "A+": 4
+      "A++": 8
+      "B": null
+    # 默认需求上线时间规则
+    # 下周周一：next_monday
+    # 下周周二：next_tuesday
+    # 下周周三：next_wednesday
+    # 下周周四：next_thursday
+    # 下周周五：next_friday
+    default_online_time: "next_monday"
+    # 默认任务截至时间规则
+    # 本周周五：this_friday
+    # 下周周五：next_friday
+    default_deadline: "this_friday"
+    # 任务时长超过4小时时，默认截至时间改为下周周五
+    deadline_threshold_hours: 4
 
 # 日志配置
 logging:
