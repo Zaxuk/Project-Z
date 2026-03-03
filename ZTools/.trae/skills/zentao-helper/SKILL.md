@@ -27,28 +27,28 @@ description: "禅道自动化助手，支持通过自然语言指令完成禅道
 ## Usage
 
 ### 基础用法
-直接调用 Skill 并用自然语言描述您的需求：
+直接使用自然语言描述您的需求：
 
 ```bash
 # 查看需求
-/iflow zentao-helper 查看我的需求
-/iflow zentao-helper 显示需求列表
+查看我的需求
+显示需求列表
 
 # 查看任务
-/iflow zentao-helper 查看我的任务
-/iflow zentao-helper 显示任务列表
+查看我的任务
+显示任务列表
 
 # 任务拆解
-/iflow zentao-helper 拆解任务#123
-/iflow zentao-helper 拆解任务#123为前端开发和后端开发
+拆解任务#123
+拆解任务#123为前端开发和后端开发
 
 # 任务分配
-/iflow zentao-helper 把任务#456分配给张三
-/iflow zentao-helper 指派任务#789给wangxiaoming
+把任务#456分配给张三
+指派任务#789给wangxiaoming
 
 # 帮助
-/iflow zentao-helper 帮助
-/iflow zentao-helper 能做什么
+帮助
+能做什么
 ```
 
 ### 认证流程

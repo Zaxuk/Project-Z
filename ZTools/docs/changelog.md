@@ -2,6 +2,40 @@
 
 本文件记录项目的重要变更。
 
+## [2026-03-03] v0.3.11 - 架构调整：移除 iFlow 依赖
+
+### 架构变更
+
+#### 移除 iFlow 依赖
+- **技能规范更新**: 从 iFlow Skill 规范迁移到 Trae Skill 规范
+- **使用方式简化**: 用户无需再输入 `/iflow` 命令前缀，直接使用自然语言指令
+
+#### 文档更新
+- **SKILL.md**: 移除 iFlow 命令格式，更新为 Trae 直接使用的格式
+- **architecture.md**: 更新架构图，将 iFlow CLI 替换为 Trae IDE
+- **functional.md**: 更新项目概述，将 iFlow Skill 机制改为 Trae Skill 机制
+
+#### 代码更新
+- **skill.py**: 更新注释和文档，移除 iFlow 相关引用
+
+### 技术实现
+
+#### 修改文件
+- `.trae/skills/zentao-helper/skill.py`
+  - 更新注释：将 "iFlow Skill 规范实现" 改为 "Trae Skill 实现"
+  - 更新类文档：将 "符合 iFlow Skill 规范" 改为 "符合 Trae Skill 规范"
+  - 更新方法文档：将 "符合 iFlow 规范" 改为 "符合 Trae 规范"
+- `.trae/skills/zentao-helper/SKILL.md`
+  - 更新使用说明：移除 `/iflow` 命令前缀
+  - 简化使用示例：直接使用自然语言指令
+- `docs/design/architecture.md`
+  - 更新架构图：将 iFlow CLI 替换为 Trae IDE
+  - 更新描述：将 "iFlow Skill 机制" 改为 "Trae Skill 机制"
+- `docs/spec/functional.md`
+  - 更新项目概述：将 "iFlow Skill 机制" 改为 "Trae Skill 机制"
+
+---
+
 ## [2026-03-03] v0.3.10 - 会话验证优化
 
 ### 新增功能
@@ -459,7 +493,6 @@
 - 验证命令解析、显示格式、API 响应结构
 
 ### 已知问题
-- iFlow Skill 注册机制待完善，当前无法通过 `/iflow` 命令调用
 - 需要交互式登录，非交互式环境无法使用
 
 ### 待办事项

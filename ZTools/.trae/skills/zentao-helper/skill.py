@@ -1,6 +1,6 @@
 """
 ZenTao Helper Skill 主入口
-iFlow Skill 规范实现
+Trae Skill 实现
 """
 
 import sys
@@ -25,7 +25,7 @@ from src.automators.task_assigner import TaskAssigner
 class ZenTaoHelperSkill:
     """
     禅道自动化助手 Skill
-    符合 iFlow Skill 规范
+    符合 Trae Skill 规范
     """
 
     def __init__(self):
@@ -56,7 +56,7 @@ class ZenTaoHelperSkill:
             user_input: 用户输入的自然语言指令
 
         Returns:
-            执行结果字典（符合 iFlow 规范）
+            执行结果字典（符合 Trae 规范）
         """
         try:
             self.logger.info(f"接收到用户指令: {user_input}")
@@ -70,7 +70,7 @@ class ZenTaoHelperSkill:
 
             # 处理帮助意图
             if intent == 'help':
-                return self._handle_help()
+                return self._handle_help().to_dict()
 
             # 确保会话有效
             if not self._ensure_session():

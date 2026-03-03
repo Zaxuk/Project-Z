@@ -2,7 +2,7 @@
 
 ## 1. 系统架构概览
 
-ZTools 采用 **Skill-based Architecture**（基于技能的架构），通过 iFlow Skill 机制提供模块化的自动化工具。
+ZTools 采用 **Skill-based Architecture**（基于技能的架构），通过 Trae Skill 机制提供模块化的自动化工具。
 
 ```mermaid
 graph TB
@@ -10,8 +10,8 @@ graph TB
         User[用户]
     end
 
-    subgraph "iFlow CLI"
-        IFlow[iFlow CLI]
+    subgraph "Trae IDE"
+        Trae[Trae IDE]
     end
 
     subgraph "Skill 层"
@@ -30,8 +30,8 @@ graph TB
         Zentao[禅道服务器]
     end
 
-    User --> IFlow
-    IFlow --> ZentaoHelper
+    User --> Trae
+    Trae --> ZentaoHelper
     ZentaoHelper --> NLP
     ZentaoHelper --> Auth
     ZentaoHelper --> API
