@@ -102,19 +102,25 @@ class EntityExtractor:
         Returns:
             用户名字符串，如果未找到返回 None
         """
+        # 先检查是否包含"未分配"，如果包含则不提取用户名
+        if '未分配' in text:
+            return None
+        
         patterns = [
             r'@(\w+)',  # @张三
-            r'(?:给|指派|分配)\s*(?:给|给)?\s*(\w+)',  # 给张三、指派给张三
-            r'(?:指定|指定给)\s*(\w+)',  # 指定张三
+            r'\b(?:给|指派|分配)\s*(?:给)?\s*(\w+)\b',  # 给张三、指派给张三
+            r'\b(?:指定|指定给)\s*(\w+)\b',  # 指定张三
         ]
 
         for pattern in patterns:
             match = re.search(pattern, text)
             if match:
                 username = match.group(1)
-                if self.debug:
-                    self.logger.debug(f"提取用户名: {text} -> {username}")
-                return username
+                # 过滤常见的非用户名词汇
+                if username not in ['需求', '任务', '给']:
+                    if self.debug:
+                        self.logger.debug(f"提取用户名: {text} -> {username}")
+                    return username
 
         return None
 
@@ -207,6 +213,8 @@ class EntityExtractor:
         - 没有任务
         - 没建任务
         - 未建任务
+        - 未分配
+        - 未分配任务
 
         Args:
             text: 用户输入的文本
@@ -214,7 +222,7 @@ class EntityExtractor:
         Returns:
             是否需要过滤未创建任务的需求
         """
-        keywords = ['未创建任务', '没有任务', '没建任务', '未建任务', '无任务']
+        keywords = ['未创建任务', '没有任务', '没建任务', '未建任务', '无任务', '未分配', '未分配任务']
         for keyword in keywords:
             if keyword in text:
                 if self.debug:
