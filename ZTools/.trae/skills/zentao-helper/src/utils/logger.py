@@ -50,21 +50,28 @@ class Logger:
         self.logger = logging.getLogger(name)
         self.logger.setLevel(getattr(logging, level.upper(), logging.INFO))
 
-        # 避免重复添加处理器
-        if not self.logger.handlers:
-            # 控制台处理器
-            handler = logging.StreamHandler(sys.stdout)
+        # 同时设置根日志器级别，防止其他模块的日志干扰
+        logging.getLogger().setLevel(getattr(logging, level.upper(), logging.INFO))
 
-            # 根据配置选择格式
-            if format_type.lower() == "json":
-                formatter = JsonFormatter()
-            else:
-                formatter = logging.Formatter(
-                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-                )
+        # 清除现有处理器，避免重复
+        if self.logger.handlers:
+            self.logger.handlers.clear()
 
-            handler.setFormatter(formatter)
-            self.logger.addHandler(handler)
+        # 控制台处理器
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(getattr(logging, level.upper(), logging.INFO))
+
+        # 根据配置选择格式
+        if format_type.lower() == "json":
+            formatter = JsonFormatter()
+        else:
+            formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+            )
+
+        handler.setFormatter(formatter)
+        self.logger.addHandler(handler)
+        self.logger.propagate = False  # 防止日志重复输出
 
     def _log(self, level: str, message: str, extra: Dict[str, Any] = None, trace_id: str = None):
         """通用日志方法"""

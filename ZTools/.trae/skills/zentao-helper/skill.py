@@ -121,29 +121,29 @@ class ZenTaoHelperSkill:
         """
         # 检查本地会话是否存在
         if not self.session_manager.is_session_valid():
-            self.logger.info("本地会话不存在或已过期")
+            self.logger.debug("本地会话不存在或已过期")
             return self._interactive_login()
-        
+
         # 加载会话到 API 客户端
         session_data = self.session_manager.load_session()
         if not session_data:
-            self.logger.info("加载会话失败")
+            self.logger.debug("加载会话失败")
             return self._interactive_login()
-        
+
         cookies = session_data.get('cookies', {})
         token = session_data.get('token')
         if token:
             self.api_client.session.headers.update({'Token': token})
         self.api_client.set_cookies(cookies)
-        
+
         # 验证服务器端会话是否有效
-        self.logger.info("验证服务器端会话...")
+        self.logger.debug("验证服务器端会话...")
         if self.api_client.verify_session():
-            self.logger.info("会话验证成功")
+            self.logger.debug("会话验证成功")
             return True
-        
+
         # 服务器端会话已过期，清除本地会话并提示重新登录
-        self.logger.info("服务器端会话已过期，需要重新登录")
+        self.logger.debug("服务器端会话已过期，需要重新登录")
         self.session_manager.clear_session()
         return self._interactive_login()
 
@@ -302,52 +302,52 @@ class ZenTaoHelperSkill:
             default_keywords = self.config.get('zentao.story_query.keywords', [])
             if default_keywords:
                 keywords = default_keywords
-                self.logger.info(f"使用配置中的默认关键字: {keywords}")
-        
+                self.logger.debug(f"使用配置中的默认关键字: {keywords}")
+
         # 获取所有已计划和已立项的需求
         result = self.story_collector.collect()
-        
+
         if result.success:
             stories = result.data.get('stories', [])
-            
+
             # 默认过滤已计划和已立项的需求
             filtered_stories = [
-                story for story in stories 
+                story for story in stories
                 if story.get('stage') in ['planned', 'projected']
             ]
-            
-            self.logger.info(f"默认过滤后: {len(filtered_stories)} 个需求 (已计划/已立项)")
-            
+
+            self.logger.debug(f"默认过滤后: {len(filtered_stories)} 个需求 (已计划/已立项)")
+
             # 如果有关键字，按标题关键字过滤
             if keywords:
-                self.logger.info(f"按关键字 {keywords} 过滤需求...")
+                self.logger.debug(f"按关键字 {keywords} 过滤需求...")
                 keyword_filtered_stories = []
-                
+
                 for story in filtered_stories:
                     title = story.get('title', '')
                     # 检查标题是否包含任一关键字（不区分大小写）
                     if any(keyword.lower() in title.lower() for keyword in keywords):
                         keyword_filtered_stories.append(story)
-                
+
                 filtered_stories = keyword_filtered_stories
-                self.logger.info(f"关键字过滤后: {len(filtered_stories)} 个需求")
-            
+                self.logger.debug(f"关键字过滤后: {len(filtered_stories)} 个需求")
+
             # 过滤未创建任务的需求
-            self.logger.info(f"开始检查 {len(filtered_stories)} 个需求的任务创建情况...")
+            self.logger.debug(f"开始检查 {len(filtered_stories)} 个需求的任务创建情况...")
             stories_no_task = []
-            
+
             for story in filtered_stories:
                 story_id = story.get('id', 0)
                 task_count = self.api_client.get_story_task_count(story_id)
-                
+
                 if task_count == 0:
                     stories_no_task.append(story)
                     self.logger.debug(f"需求 #{story_id} 未创建任务")
                 else:
                     self.logger.debug(f"需求 #{story_id} 已创建 {task_count} 个任务")
-            
+
             filtered_stories = stories_no_task
-            self.logger.info(f"过滤后: {len(filtered_stories)} 个未创建任务的需求")
+            self.logger.debug(f"过滤后: {len(filtered_stories)} 个未创建任务的需求")
             
             result_data = {
                 'stories': filtered_stories,
