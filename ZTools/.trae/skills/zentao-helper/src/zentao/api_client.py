@@ -632,24 +632,34 @@ class ZentaoApiClient:
                             story = story_data['story']
                             tasks = story.get('tasks', {})
 
+                            # 调试日志：打印任务数据结构
+                            self.logger.debug(f"需求 #{story_id} 任务数据类型: {type(tasks)}")
+                            self.logger.debug(f"需求 #{story_id} 任务数据: {tasks}")
+
                             # tasks 是字典格式: {project_id: [task_list]}
                             if isinstance(tasks, dict):
                                 total_tasks = 0
-                                for project_tasks in tasks.values():
+                                for project_id, project_tasks in tasks.items():
+                                    self.logger.debug(f"项目 {project_id} 任务数: {len(project_tasks) if isinstance(project_tasks, list) else 'N/A'}")
                                     if isinstance(project_tasks, list):
+                                        for task in project_tasks:
+                                            self.logger.debug(f"  任务 #{task.get('id')}: deleted={task.get('deleted')}, status={task.get('status')}")
                                         # 过滤掉已删除的任务（deleted 字段为 '1' 表示已删除）
                                         valid_tasks = [
                                             task for task in project_tasks
                                             if task.get('deleted') != '1' and task.get('deleted') != 1
                                         ]
                                         total_tasks += len(valid_tasks)
+                                self.logger.debug(f"需求 #{story_id} 有效任务数: {total_tasks}")
                                 return total_tasks
                             elif isinstance(tasks, list):
+                                self.logger.debug(f"需求 #{story_id} 任务列表长度: {len(tasks)}")
                                 # 过滤掉已删除的任务
                                 valid_tasks = [
                                     task for task in tasks
                                     if task.get('deleted') != '1' and task.get('deleted') != 1
                                 ]
+                                self.logger.debug(f"需求 #{story_id} 有效任务数: {len(valid_tasks)}")
                                 return len(valid_tasks)
 
                 except Exception as e:
