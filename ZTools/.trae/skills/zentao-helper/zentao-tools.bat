@@ -159,7 +159,7 @@ echo.
 echo 正在查询我的需求...
 echo.
 
-python -c "import sys; sys.path.insert(0, 'src'); from skill import ZenTaoHelperSkill; skill = ZenTaoHelperSkill(); result = skill.execute('查看我的需求'); print(result.get('message', '执行完成'))"
+python -c "import sys; sys.path.insert(0, 'src'); from skill import ZenTaoHelperSkill; skill = ZenTaoHelperSkill(); result = skill.execute('查看我的需求'); print(result.get('data', {}).get('message', '执行完成'))"
 
 echo.
 pause
@@ -170,7 +170,7 @@ echo.
 echo 正在查询未分配的需求...
 echo.
 
-python -c "import sys; sys.path.insert(0, 'src'); from skill import ZenTaoHelperSkill; skill = ZenTaoHelperSkill(); result = skill.execute('查看未分配的需求'); print(result.get('message', '执行完成'))"
+python -c "import sys; sys.path.insert(0, 'src'); from skill import ZenTaoHelperSkill; skill = ZenTaoHelperSkill(); result = skill.execute('查看未分配的需求'); print(result.get('data', {}).get('message', '执行完成'))"
 
 echo.
 pause
@@ -181,7 +181,7 @@ echo.
 echo 正在查询我的任务...
 echo.
 
-python -c "import sys; sys.path.insert(0, 'src'); from skill import ZenTaoHelperSkill; skill = ZenTaoHelperSkill(); result = skill.execute('查看我的任务'); print(result.get('message', '执行完成'))"
+python -c "import sys; sys.path.insert(0, 'src'); from skill import ZenTaoHelperSkill; skill = ZenTaoHelperSkill(); result = skill.execute('查看我的任务'); print(result.get('data', {}).get('message', '执行完成'))"
 
 echo.
 pause
