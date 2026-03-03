@@ -196,6 +196,40 @@ class ZentaoApiClient:
                 f"{ErrorMessage.API_ERROR}: {str(e)}"
             )
 
+    def verify_session(self) -> bool:
+        """
+        验证服务器端会话是否有效
+        
+        通过访问一个需要登录的 API 来验证会话是否有效
+        
+        Returns:
+            会话是否有效
+        """
+        try:
+            # 访问我的需求页面来验证会话
+            url = f"{self.base_url}/my-story-assignedTo-id_desc-9999-1-1.json"
+            response = self.session.get(url, timeout=self.timeout)
+            
+            if response.status_code == 200:
+                try:
+                    result = response.json()
+                    # 如果返回成功状态，说明会话有效
+                    if result.get('status') == 'success':
+                        self.logger.debug("会话验证成功")
+                        return True
+                except:
+                    pass
+            
+            self.logger.info("会话验证失败：服务器返回非成功状态")
+            return False
+            
+        except requests.Timeout:
+            self.logger.error("会话验证超时")
+            return False
+        except Exception as e:
+            self.logger.error(f"会话验证异常: {str(e)}")
+            return False
+
     def _get_current_user_v8(self) -> Optional[Dict]:
         """获取当前用户信息 (禅道 8.x 版本)"""
         try:

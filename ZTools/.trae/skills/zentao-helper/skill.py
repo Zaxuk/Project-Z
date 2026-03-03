@@ -106,22 +106,42 @@ class ZenTaoHelperSkill:
     def _ensure_session(self) -> bool:
         """
         确保会话有效，无效则提示登录
+        
+        流程：
+        1. 检查本地会话文件是否存在且未过期
+        2. 加载会话到 API 客户端
+        3. 验证服务器端会话是否有效
+        4. 如果服务器端会话无效，提示用户重新登录
 
         Returns:
             会话是否有效
         """
-        if self.session_manager.is_session_valid():
-            # 加载会话到 API 客户端
-            session_data = self.session_manager.load_session()
-            if session_data:
-                cookies = session_data.get('cookies', {})
-                token = session_data.get('token')
-                if token:
-                    self.api_client.session.headers.update({'Token': token})
-                self.api_client.set_cookies(cookies)
-                return True
-
-        # 会话无效，尝试交互式登录
+        # 检查本地会话是否存在
+        if not self.session_manager.is_session_valid():
+            self.logger.info("本地会话不存在或已过期")
+            return self._interactive_login()
+        
+        # 加载会话到 API 客户端
+        session_data = self.session_manager.load_session()
+        if not session_data:
+            self.logger.info("加载会话失败")
+            return self._interactive_login()
+        
+        cookies = session_data.get('cookies', {})
+        token = session_data.get('token')
+        if token:
+            self.api_client.session.headers.update({'Token': token})
+        self.api_client.set_cookies(cookies)
+        
+        # 验证服务器端会话是否有效
+        self.logger.info("验证服务器端会话...")
+        if self.api_client.verify_session():
+            self.logger.info("会话验证成功")
+            return True
+        
+        # 服务器端会话已过期，清除本地会话并提示重新登录
+        self.logger.info("服务器端会话已过期，需要重新登录")
+        self.session_manager.clear_session()
         return self._interactive_login()
 
     def _interactive_login(self) -> bool:
