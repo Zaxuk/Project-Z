@@ -75,7 +75,7 @@ class TaskSplitter(BaseAutomator):
             )
 
         story = story_result.data
-        self.logger.info(f"开始从需求 #{story_id} 创建任务: {story.get('title', '')}")
+        self.logger.debug(f"开始从需求 #{story_id} 创建任务: {story.get('title', '')}")
 
         # 判断是否为非交互模式
         non_interactive = any([grade, priority, online_time, assigned_to, task_hours, deadline])
@@ -104,7 +104,7 @@ class TaskSplitter(BaseAutomator):
         updated_title = task_info['updated_title']
         
         # 步骤2: 调用 API 更新禅道中的需求标题
-        self.logger.info(f"正在更新需求 #{story_id} 的标题为: {updated_title}")
+        self.logger.debug(f"正在更新需求 #{story_id} 的标题为: {updated_title}")
         update_result = self.api_client.update_story_title(int(story_id), updated_title)
         if not update_result.success:
             error_msg = f"更新需求标题失败: {update_result.error.message if update_result.error else '未知错误'}"
@@ -114,10 +114,10 @@ class TaskSplitter(BaseAutomator):
                 f"步骤2失败：{error_msg}，任务创建已中止"
             )
         else:
-            self.logger.info(f"需求标题更新成功: {updated_title}")
+            self.logger.info(f"✓ 需求标题已更新: {updated_title}")
 
         # 步骤2.5: 评审需求（变更后状态会变成"已变更"，需要评审改回"已激活"）
-        self.logger.info(f"正在评审需求 #{story_id}")
+        self.logger.debug(f"正在评审需求 #{story_id}")
         review_result = self.api_client.review_story(
             int(story_id),
             result='pass',
@@ -126,13 +126,13 @@ class TaskSplitter(BaseAutomator):
             comment='需求已拆解并评审通过，准备开发'
         )
         if review_result.success:
-            self.logger.info(f"需求 #{story_id} 评审成功")
+            self.logger.info(f"✓ 需求已评审通过")
         else:
             # 评审失败不阻断流程，只记录警告
-            self.logger.warning(f"需求 #{story_id} 评审失败: {review_result.error.message if review_result.error else '未知错误'}")
+            self.logger.debug(f"需求评审失败: {review_result.error.message if review_result.error else '未知错误'}")
 
         # 步骤3: 选择项目
-        self.logger.info(f"正在选择项目")
+        self.logger.debug(f"正在选择项目")
         select_result = self._select_project()
         if not select_result.success:
             error_msg = f"选择项目失败: {select_result.error.message if select_result.error else '未知错误'}"
@@ -143,7 +143,7 @@ class TaskSplitter(BaseAutomator):
             )
         else:
             execution_id = select_result.data.get('execution_id', 0)
-            self.logger.info(f"已选择项目 #{execution_id}")
+            self.logger.info(f"✓ 已选择项目 #{execution_id}")
 
         # 步骤4: 创建任务
         return self._perform_create(
@@ -206,7 +206,7 @@ class TaskSplitter(BaseAutomator):
         Returns:
             创建结果
         """
-        self.logger.info(f"从需求 #{story_id} 创建任务")
+        self.logger.debug(f"从需求 #{story_id} 创建任务")
         
         # 获取更新后的需求标题
         final_updated_title = task_info.get('updated_title', updated_title)
@@ -231,7 +231,7 @@ class TaskSplitter(BaseAutomator):
 
             if result.success:
                 created_task = result.data
-                self.logger.info(f"成功创建任务 #{created_task.get('id')}: {task_title}")
+                self.logger.info(f"✓ 成功创建任务 #{created_task.get('id')}")
                 
                 return ApiResponse.success_response({
                     'story_id': story_id,

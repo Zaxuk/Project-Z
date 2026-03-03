@@ -60,14 +60,14 @@ class ZenTaoHelperSkill:
             执行结果字典（符合 Trae 规范）
         """
         try:
-            self.logger.info(f"接收到用户指令: {user_input}")
+            self.logger.debug(f"接收到用户指令: {user_input}")
 
             # 解析命令
             command = self.command_parser.parse(user_input)
             intent = command['intent']
             entities = command['entities']
 
-            self.logger.info(f"解析结果 - 意图: {intent}, 实体: {entities}")
+            self.logger.debug(f"解析结果 - 意图: {intent}, 实体: {entities}")
 
             # 处理帮助意图
             if intent == 'help':
@@ -218,61 +218,61 @@ class ZenTaoHelperSkill:
             default_keywords = self.config.get('zentao.story_query.keywords', [])
             if default_keywords:
                 keywords = default_keywords
-                self.logger.info(f"使用配置中的默认关键字: {keywords}")
-        
+                self.logger.debug(f"使用配置中的默认关键字: {keywords}")
+
         # 获取所有需求
         result = self.story_collector.collect(status=status)
-        
+
         if result.success:
             stories = result.data.get('stories', [])
-            
+
             # 如果用户没有指定状态，默认过滤已计划和已立项的需求
             if not status:
                 filtered_stories = [
-                    story for story in stories 
+                    story for story in stories
                     if story.get('stage') in ['planned', 'projected']
                 ]
-                
-                self.logger.info(f"默认过滤后: {len(filtered_stories)} 个需求 (已计划/已立项)")
+
+                self.logger.debug(f"默认过滤后: {len(filtered_stories)} 个需求 (已计划/已立项)")
             elif status == 'all':
                 # 用户要求查看所有需求，不过滤
                 filtered_stories = stories
-                self.logger.info(f"显示所有需求: {len(filtered_stories)} 个")
+                self.logger.debug(f"显示所有需求: {len(filtered_stories)} 个")
             else:
                 # 用户指定了具体状态，按状态过滤
                 filtered_stories = stories
             
             # 如果有关键字，按标题关键字过滤
             if keywords:
-                self.logger.info(f"按关键字 {keywords} 过滤需求...")
+                self.logger.debug(f"按关键字 {keywords} 过滤需求...")
                 keyword_filtered_stories = []
-                
+
                 for story in filtered_stories:
                     title = story.get('title', '')
                     # 检查标题是否包含任一关键字（不区分大小写）
                     if any(keyword.lower() in title.lower() for keyword in keywords):
                         keyword_filtered_stories.append(story)
-                
+
                 filtered_stories = keyword_filtered_stories
-                self.logger.info(f"关键字过滤后: {len(filtered_stories)} 个需求")
-            
+                self.logger.debug(f"关键字过滤后: {len(filtered_stories)} 个需求")
+
             # 如果需要过滤未创建任务的需求
             if filter_no_task:
-                self.logger.info(f"开始检查 {len(filtered_stories)} 个需求的任务创建情况...")
+                self.logger.debug(f"开始检查 {len(filtered_stories)} 个需求的任务创建情况...")
                 stories_no_task = []
-                
+
                 for story in filtered_stories:
                     story_id = story.get('id', 0)
                     task_count = self.api_client.get_story_task_count(story_id)
-                    
+
                     if task_count == 0:
                         stories_no_task.append(story)
                         self.logger.debug(f"需求 #{story_id} 未创建任务")
                     else:
                         self.logger.debug(f"需求 #{story_id} 已创建 {task_count} 个任务")
-                
+
                 filtered_stories = stories_no_task
-                self.logger.info(f"过滤后: {len(filtered_stories)} 个未创建任务的需求")
+                self.logger.debug(f"过滤后: {len(filtered_stories)} 个未创建任务的需求")
             
             result_data = {
                 'stories': filtered_stories,
