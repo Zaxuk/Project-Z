@@ -56,7 +56,7 @@ class StoryTitleUpdater:
         tags = self._extract_valid_tags(original_title)
 
         # 3. 处理【紧急】标签
-        if priority and '紧急' in priority:
+        if priority == '紧急':
             # 用户选择紧急，添加【紧急】标签
             if '紧急' not in tags:
                 tags.insert(0, '紧急')  # 插入到最前面
