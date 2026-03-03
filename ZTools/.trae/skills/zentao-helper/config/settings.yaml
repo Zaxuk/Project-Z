@@ -24,7 +24,7 @@ zentao:
   # 任务创建配置
   task_creation:
     # 默认任务执行人（为空则不设置）
-    default_assigned_to: ""
+    default_assigned_to: "chenkeyu"
     # 需求等级对应的任务时长（小时）
     # A-: 1小时, A: 2小时, A+: 4小时, A++: 8小时, B: 空（需用户输入）
     grade_hours:
@@ -33,6 +33,10 @@ zentao:
       "A+": 4
       "A++": 8
       "B": null
+    # 默认关联项目名称（为空则让用户选择）
+    # 可以配置为固定的项目名称，例如: "都江堰项目"
+    # 支持部分匹配，例如配置 "都江堰" 可以匹配 "都江堰项目"
+    default_project_name: "研发中心"
     # 默认需求上线时间规则
     # 下周周一：next_monday
     # 下周周二：next_tuesday

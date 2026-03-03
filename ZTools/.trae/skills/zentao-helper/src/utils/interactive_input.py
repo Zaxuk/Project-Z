@@ -22,6 +22,72 @@ class InteractiveInput:
         self.logger = get_logger()
         self.config = get_config()
 
+    def collect_task_info_non_interactive(
+        self,
+        story_title: str,
+        grade: str = 'A',
+        priority: str = '非紧急',
+        online_time: str = '下周周一',
+        assigned_to: str = None,
+        task_hours: float = None,
+        deadline: str = '本周周五'
+    ) -> Optional[Dict]:
+        """
+        非交互模式：直接使用参数创建任务信息
+
+        Args:
+            story_title: 需求标题
+            grade: 需求等级 (A-/A/A+/A++/B)
+            priority: 需求优先级 (非紧急/紧急)
+            online_time: 需求上线时间
+            assigned_to: 任务执行人
+            task_hours: 任务时长（小时）
+            deadline: 任务截至时间
+
+        Returns:
+            任务信息字典
+        """
+        # 验证并规范化等级
+        valid_grades = ['A-', 'A', 'A+', 'A++', 'B']
+        if grade not in valid_grades:
+            self.logger.warning(f"无效的需求等级: {grade}，使用默认值 A")
+            grade = 'A'
+
+        # 验证并规范化优先级
+        valid_priorities = ['非紧急', '紧急']
+        if priority not in valid_priorities:
+            self.logger.warning(f"无效的需求优先级: {priority}，使用默认值 非紧急")
+            priority = '非紧急'
+
+        # 如果没有提供任务时长，根据等级设置默认值
+        if task_hours is None:
+            grade_hours = self.config.get_zentao_config().get('task_creation', {}).get('grade_hours', {})
+            task_hours = grade_hours.get(grade, 2)
+
+        # 获取默认执行人
+        if not assigned_to:
+            assigned_to = self.config.get_zentao_config().get('task_creation', {}).get('default_assigned_to', '')
+            if not assigned_to:
+                assigned_to = None
+
+        # 生成更新后的需求标题
+        from .story_title_updater import StoryTitleUpdater
+        title_updater = StoryTitleUpdater()
+        updated_title = title_updater.update_title(story_title, grade, online_time)
+
+        self.logger.info(f"非交互模式: 等级={grade}, 优先级={priority}, 上线时间={online_time}, 执行人={assigned_to}, 时长={task_hours}, 截止={deadline}")
+
+        return {
+            'grade': grade,
+            'priority': priority,
+            'online_time': online_time,
+            'assigned_to': assigned_to,
+            'task_hours': task_hours,
+            'deadline': deadline,
+            'updated_title': updated_title,
+            'task_title': None
+        }
+
     def collect_task_info(self, story_title: str = None) -> Optional[Dict]:
         """
         收集任务创建所需的信息
@@ -54,11 +120,13 @@ class InteractiveInput:
         # 6. 任务截至时间
         deadline = self._input_deadline(task_hours)
 
-        # 7. 任务标题
-        task_title = self._input_task_title(story_title, grade, online_time)
+        # 7. 生成更新后的需求标题（用于生成任务标题，不需要单独确认）
+        from .story_title_updater import StoryTitleUpdater
+        title_updater = StoryTitleUpdater()
+        updated_title = title_updater.update_title(story_title, grade, online_time)
 
-        # 确认信息
-        if not self._confirm_info(grade, priority, online_time, assigned_to, task_hours, deadline, task_title):
+        # 8. 确认所有信息（包含需求标题和任务标题）
+        if not self._confirm_all_info(grade, priority, online_time, assigned_to, task_hours, deadline, updated_title):
             print("\n已取消任务创建")
             return None
 
@@ -69,7 +137,8 @@ class InteractiveInput:
             'assigned_to': assigned_to,
             'task_hours': task_hours,
             'deadline': deadline,
-            'task_title': task_title
+            'updated_title': updated_title,
+            'task_title': None  # 任务标题将根据updated_title自动生成
         }
 
     def _input_grade(self) -> str:
@@ -77,17 +146,20 @@ class InteractiveInput:
         输入需求等级
 
         Returns:
-            需求等级（A-/A/A+/A++/B）
+            需求等级（A-/A/A+/A++/B），默认A
         """
         while True:
             try:
                 print("\n需求等级：")
                 print("  1. A-")
-                print("  2. A")
+                print("  2. A (默认)")
                 print("  3. A+")
                 print("  4. A++")
                 print("  5. B")
-                choice = input("请选择 (1-5): ").strip()
+                choice = input("请选择 (1-5, 直接回车使用默认A): ").strip()
+
+                if not choice:
+                    return 'A'
 
                 grade_map = {'1': 'A-', '2': 'A', '3': 'A+', '4': 'A++', '5': 'B'}
                 if choice in grade_map:
@@ -103,19 +175,19 @@ class InteractiveInput:
         输入需求优先级
 
         Returns:
-            需求优先级（紧急/非紧急）
+            需求优先级（非紧急/紧急），默认非紧急
         """
         while True:
             try:
                 print("\n需求优先级：")
-                print("  1. 紧急")
-                print("  2. 非紧急")
-                choice = input("请选择 (1-2): ").strip()
+                print("  1. 非紧急 (默认)")
+                print("  2. 紧急")
+                choice = input("请选择 (1-2, 直接回车使用默认非紧急): ").strip()
 
-                if choice == '1':
-                    return '紧急'
-                elif choice == '2':
+                if not choice or choice == '1':
                     return '非紧急'
+                elif choice == '2':
+                    return '紧急'
                 else:
                     print("无效选择，请重新输入")
             except (EOFError, KeyboardInterrupt):
@@ -136,25 +208,29 @@ class InteractiveInput:
             try:
                 print(f"\n需求上线时间：")
                 print("  1. 下周周一")
-                print("  2. 下周周二")
-                print("  3. 下周周三")
-                print("  4. 下周周四")
-                print("  5. 下周周五")
+                print("  2. 下周周四")
+                print("  3. 下下周周一")
+                print("  4. 下下周周四")
+                print("  5. 自定义日期")
                 print(f"  默认: {default_text}")
                 choice = input("请选择 (1-5, 直接回车使用默认): ").strip()
 
                 if not choice:
                     return default_text
 
-                time_map = {
-                    '1': '下周周一',
-                    '2': '下周周二',
-                    '3': '下周周三',
-                    '4': '下周周四',
-                    '5': '下周周五'
-                }
-                if choice in time_map:
-                    return time_map[choice]
+                if choice == '1':
+                    return '下周周一'
+                elif choice == '2':
+                    return '下周周四'
+                elif choice == '3':
+                    return '下下周周一'
+                elif choice == '4':
+                    return '下下周周四'
+                elif choice == '5':
+                    # 自定义日期输入
+                    custom_date = self._input_custom_date()
+                    if custom_date:
+                        return custom_date
                 else:
                     print("无效选择，请重新输入")
             except (EOFError, KeyboardInterrupt):
@@ -231,27 +307,18 @@ class InteractiveInput:
         Returns:
             截至时间字符串
         """
-        default_rule = self.config.get_zentao_config().get('task_creation', {}).get('default_deadline', 'this_friday')
-        threshold_hours = self.config.get_zentao_config().get('task_creation', {}).get('deadline_threshold_hours', 4)
-
-        # 如果任务时长超过阈值，默认改为下周周五
-        if task_hours and task_hours > threshold_hours:
-            default_rule = 'next_friday'
-
-        default_text = self._get_deadline_text(default_rule)
+        # 默认本周周五
+        default_rule = 'this_friday'
+        default_text = '本周周五'
 
         while True:
             try:
                 print(f"\n任务截至时间：")
-                print("  1. 本周周五")
+                print("  1. 本周周五 (默认)")
                 print("  2. 下周周五")
-                print(f"  默认: {default_text}")
-                choice = input("请选择 (1-2, 直接回车使用默认): ").strip()
+                choice = input("请选择 (1-2, 直接回车使用默认本周周五): ").strip()
 
-                if not choice:
-                    return default_text
-
-                if choice == '1':
+                if not choice or choice == '1':
                     return '本周周五'
                 elif choice == '2':
                     return '下周周五'
@@ -296,32 +363,36 @@ class InteractiveInput:
         """
         生成任务标题
 
-        格式：【任务】当前需求标题
+        格式：【研发】【等级】【标签1】【标签2】【标签N】YYMMDD 剩余原标题
 
         Args:
             story_title: 原需求标题
             grade: 需求等级
-            online_time: 上线时间
+            online_time: 上线时间（将被转换为YYMMDD格式）
 
         Returns:
             任务标题
         """
-        if not story_title:
-            return ""
+        from .story_title_updater import StoryTitleUpdater
+        title_updater = StoryTitleUpdater()
+        
+        # 生成更新后的需求标题格式（包含等级、标签、YYMMDD）
+        updated_title = title_updater.update_title(story_title, grade, online_time)
+        
+        # 任务标题格式：【研发】+ 更新后的需求标题
+        return f"【研发】{updated_title}"
 
-        return f"【任务】{story_title}"
-
-    def _confirm_info(self, grade: str, priority: str, online_time: str,
-                    assigned_to: Optional[str], task_hours: Optional[float],
-                    deadline: str, task_title: str) -> bool:
+    def _confirm_all_info(self, grade: str, priority: str, online_time: str,
+                         assigned_to: Optional[str], task_hours: Optional[float],
+                         deadline: str, updated_title: str) -> bool:
         """
-        确认任务信息
+        确认所有任务信息
 
         Returns:
             是否确认
         """
         print("\n" + "=" * 60)
-        print("请确认以下信息：")
+        print("请确认所有信息：")
         print("=" * 60)
         print(f"需求等级: {grade}")
         print(f"需求优先级: {priority}")
@@ -329,18 +400,20 @@ class InteractiveInput:
         print(f"任务执行人: {assigned_to if assigned_to else '未设置'}")
         print(f"任务时长: {task_hours} 小时" if task_hours else "任务时长: 未设置")
         print(f"任务截至时间: {deadline}")
-        print(f"任务标题: {task_title[:80]}..." if len(task_title) > 80 else f"任务标题: {task_title}")
+        print(f"需求标题: {updated_title[:60]}..." if len(updated_title) > 60 else f"需求标题: {updated_title}")
+        print(f"任务标题: 【研发】{updated_title[:50]}..." if len(updated_title) > 50 else f"任务标题: 【研发】{updated_title}")
         print("=" * 60)
 
         while True:
             try:
-                choice = input("\n确认以上信息？(y/n): ").strip().lower()
-                if choice in ['y', 'yes']:
+                choice = input("\n确认以上信息？(直接回车或y确认，n取消): ").strip().lower()
+                if not choice or choice in ['y', 'yes']:
+                    # 回车或 y/yes 都认为是确认
                     return True
                 elif choice in ['n', 'no']:
                     return False
                 else:
-                    print("请输入 y 或 n")
+                    print("请输入 y 直接回车确认，或 n 取消")
             except (EOFError, KeyboardInterrupt):
                 print("\n已取消")
                 return False
@@ -364,6 +437,41 @@ class InteractiveInput:
         }
         return time_map.get(rule, rule)
 
+    def _input_custom_date(self) -> Optional[str]:
+        """
+        输入自定义日期
+
+        Returns:
+            自定义日期字符串，格式为 YYMMDD
+        """
+        date_pattern = r'^\d{6}$'
+        
+        while True:
+            try:
+                date_input = input("请输入自定义日期 (格式: YYMMDD, 如 260331): ").strip()
+                
+                if not date_input:
+                    print("未输入日期，返回上级菜单")
+                    return None
+                
+                # 验证日期格式
+                if not re.match(date_pattern, date_input):
+                    print("日期格式错误，请使用 YYMMDD 格式（如 260331 表示 2026年3月31日）")
+                    continue
+                
+                # 验证日期有效性（自动补全年份为20XX）
+                try:
+                    full_year_date = f"20{date_input}"
+                    datetime.strptime(full_year_date, '%Y%m%d')
+                except ValueError:
+                    print("无效的日期，请检查日期是否正确")
+                    continue
+                
+                return date_input
+            except (EOFError, KeyboardInterrupt):
+                print("\n输入已取消")
+                return None
+
     def _get_deadline_text(self, rule: str) -> str:
         """
         获取截至时间规则的文本描述
@@ -379,3 +487,61 @@ class InteractiveInput:
             'next_friday': '下周周五'
         }
         return time_map.get(rule, rule)
+
+    def select_execution(self, executions: List[Dict], default_project_name: str = None) -> Optional[int]:
+        """
+        选择执行/项目
+
+        Args:
+            executions: 执行/项目列表
+            default_project_name: 默认项目名称（来自配置），支持部分匹配
+
+        Returns:
+            选中的执行ID，如果用户取消返回 None
+        """
+        if not executions:
+            print("\n未找到可用的执行/项目")
+            return None
+
+        # 如果配置了默认项目名称，检查是否在列表中（支持部分匹配）
+        if default_project_name:
+            for exec_data in executions:
+                exec_name = exec_data.get('name', '')
+                # 支持部分匹配：配置 "都江堰" 可以匹配 "都江堰项目"
+                if default_project_name.lower() in exec_name.lower():
+                    print(f"\n使用配置的默认项目: {exec_name} (ID: {exec_data.get('id')})")
+                    return exec_data.get('id')
+            print(f"\n配置的默认项目名称 '{default_project_name}' 未找到匹配的项目")
+
+        print("\n" + "=" * 60)
+        print("请选择要关联的执行/项目：")
+        print("=" * 60)
+
+        # 显示执行列表
+        for i, exec_data in enumerate(executions, 1):
+            status = exec_data.get('status', '')
+            status_text = f" [{status}]" if status else ""
+            print(f"  {i}. {exec_data.get('name')} (ID: {exec_data.get('id')}){status_text}")
+
+        print("=" * 60)
+
+        while True:
+            try:
+                choice = input("\n请选择 (输入序号，直接回车取消): ").strip()
+
+                if not choice:
+                    print("已取消项目选择")
+                    return None
+
+                choice_num = int(choice)
+                if 1 <= choice_num <= len(executions):
+                    selected = executions[choice_num - 1]
+                    print(f"\n已选择: {selected.get('name')} (ID: {selected.get('id')})")
+                    return selected.get('id')
+                else:
+                    print(f"无效选择，请输入 1-{len(executions)} 之间的数字")
+            except ValueError:
+                print("请输入有效的数字")
+            except (EOFError, KeyboardInterrupt):
+                print("\n已取消")
+                return None

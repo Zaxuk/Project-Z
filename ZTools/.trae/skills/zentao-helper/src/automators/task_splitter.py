@@ -1,6 +1,6 @@
 """
-任务拆解器（优化版）
-将一个任务拆解为多个子任务，支持交互式输入需求信息
+任务创建器
+从需求创建任务，支持交互式输入需求信息
 """
 
 import sys
@@ -15,7 +15,7 @@ from ..utils.story_title_updater import StoryTitleUpdater
 
 class TaskSplitter(BaseAutomator):
     """
-    任务拆解器（优化版）
+    任务创建器
     支持交互式输入需求信息，自动更新需求标题
     """
 
@@ -25,268 +25,305 @@ class TaskSplitter(BaseAutomator):
         self.interactive_input = InteractiveInput()
         self.title_updater = StoryTitleUpdater()
 
-    def execute(self, parent_task_id: str = None, subtask_names: List[str] = None,
-                user_input: str = None, **kwargs) -> ApiResponse:
+    def execute(
+        self,
+        story_id: str = None,
+        user_input: str = None,
+        grade: str = None,
+        priority: str = None,
+        online_time: str = None,
+        assigned_to: str = None,
+        task_hours: float = None,
+        deadline: str = None,
+        **kwargs
+    ) -> ApiResponse:
         """
-        执行任务拆解
+        从需求创建任务
+
+        流程：
+        1. 用户输入信息
+        2. 变更需求标题
+        3. 把需求关联到项目
+        4. 创建任务
 
         Args:
-            parent_task_id: 父任务ID
-            subtask_names: 子任务名称列表
-            user_input: 原始用户输入（用于提取子任务名称）
+            story_id: 需求ID
+            user_input: 原始用户输入
+            grade: 需求等级 (非交互模式)
+            priority: 需求优先级 (非交互模式)
+            online_time: 需求上线时间 (非交互模式)
+            assigned_to: 任务执行人 (非交互模式)
+            task_hours: 任务时长 (非交互模式)
+            deadline: 任务截至时间 (非交互模式)
             **kwargs: 其他参数
 
         Returns:
-            拆解结果
+            创建结果
         """
-        if not parent_task_id:
+        if not story_id:
             return ApiResponse.error_response(
                 ErrorCode.MISSING_PARAMETER,
-                "请指定要拆解的任务ID，例如：拆解任务#123"
+                "请指定要拆解的需求ID，例如：拆解需求#123"
             )
 
-        # 验证父任务是否存在
-        task_result = self.api_client.get_task(int(parent_task_id))
-        if not task_result.success:
+        # 从需求创建任务
+        story_result = self.api_client.get_story(int(story_id))
+        if not story_result.success:
             return ApiResponse.error_response(
-                ErrorCode.TASK_NOT_FOUND,
-                ErrorMessage.TASK_NOT_FOUND
+                ErrorCode.STORY_NOT_FOUND,
+                f"需求 #{story_id} 不存在"
             )
 
-        parent_task = task_result.data
-        self.logger.info(f"开始拆解任务 #{parent_task_id}: {parent_task.get('title', '')}")
+        story = story_result.data
+        self.logger.info(f"开始从需求 #{story_id} 创建任务: {story.get('title', '')}")
 
-        # 收集任务创建信息
-        task_info = self.interactive_input.collect_task_info(parent_task.get('title', ''))
-        if not task_info:
-            return ApiResponse.error_response(
-                ErrorCode.USER_CANCELLED,
-                "已取消任务拆解"
+        # 判断是否为非交互模式
+        non_interactive = any([grade, priority, online_time, assigned_to, task_hours, deadline])
+        
+        if non_interactive:
+            # 非交互模式：使用参数
+            task_info = self.interactive_input.collect_task_info_non_interactive(
+                story_title=story.get('title', ''),
+                grade=grade or 'A',
+                priority=priority or '非紧急',
+                online_time=online_time or '下周周一',
+                assigned_to=assigned_to,
+                task_hours=task_hours,
+                deadline=deadline or '本周周五'
             )
-
-        # 更新需求标题
-        updated_title = self.title_updater.update_title(
-            parent_task.get('title', ''),
-            task_info['grade'],
-            task_info['online_time']
-        )
-
-        self.logger.info(f"更新需求标题为: {updated_title}")
-
-        # 获取子任务名称
-        if not subtask_names:
-            if user_input:
-                # 尝试从用户输入中提取
-                from ..nlp.entity_extractor import EntityExtractor
-                extractor = EntityExtractor()
-                subtask_names = extractor.extract_subtask_names(user_input)
-
-            if not subtask_names:
-                # 交互式输入
-                subtask_names = self._interactive_input_subtasks()
-
-            if not subtask_names:
-                return ApiResponse.error_response(
-                    ErrorCode.MISSING_PARAMETER,
-                    "未提供子任务名称，拆解已取消"
-                )
-
-        # 执行拆解
-        return self._perform_split(
-            int(parent_task_id),
-            subtask_names,
-            task_info,
-            updated_title
-        )
-
-    def _interactive_input_subtasks(self) -> List[str]:
-        """
-        交互式输入子任务名称
-
-        Returns:
-            子任务名称列表
-        """
-        print(f"\n请输入子任务名称（每行一个，空行结束）：")
-
-        subtasks = []
-        while True:
-            try:
-                line = input("> ")
-                if not line.strip():
-                    break
-                subtasks.append(line.strip())
-            except (EOFError, KeyboardInterrupt):
-                print("\n输入已取消")
-                return []
-
-        return subtasks
-
-    def _perform_split(self, parent_task_id: int, subtask_names: List[str],
-                     task_info: dict, updated_title: str) -> ApiResponse:
-        """
-        执行实际的拆解操作
-
-        Args:
-            parent_task_id: 父任务ID
-            subtask_names: 子任务名称列表
-            task_info: 任务信息
-            updated_title: 更新后的需求标题
-
-        Returns:
-            拆解结果
-        """
-        self.logger.info(f"拆解任务 #{parent_task_id} 为 {len(subtask_names)} 个子任务")
-
-        created_tasks = []
-        failed_tasks = []
-
-        # 获取执行ID（从父任务中获取）
-        parent_task_result = self.api_client.get_task(parent_task_id)
-        execution_id = parent_task_result.data.get('execution', 0) if parent_task_result.success else 0
-
-        for i, name in enumerate(subtask_names, 1):
-            try:
-                # 生成任务标题
-                task_title = task_info['task_title'] if task_info['task_title'] else f"【任务】{name}"
-
-                # 计算截止日期
-                deadline = self._calculate_deadline(task_info['deadline'])
-
-                result = self.api_client.create_task(
-                    execution_id=execution_id,
-                    name=task_title,
-                    assigned_to=task_info['assigned_to'] if task_info['assigned_to'] else None,
-                    estimate=task_info['task_hours'] if task_info['task_hours'] else 0,
-                    deadline=deadline,
-                    parent_id=parent_task_id
-                )
-
-                if result.success:
-                    created_task = result.data
-                    created_tasks.append({
-                        'id': created_task.get('id'),
-                        'name': name,
-                        'title': task_title,
-                        'index': i
-                    })
-                    self.logger.info(f"成功创建子任务 #{created_task.get('id')}: {name}")
-                else:
-                    failed_tasks.append({
-                        'name': name,
-                        'index': i,
-                        'error': result.error.message if result.error else '未知错误'
-                    })
-                    self.logger.error(f"创建子任务失败: {name}")
-
-            except Exception as e:
-                failed_tasks.append({
-                    'name': name,
-                    'index': i,
-                    'error': str(e)
-                })
-                self.logger.error(f"创建子任务异常: {name}, {str(e)}")
-
-        # 返回结果
-        success_count = len(created_tasks)
-        fail_count = len(failed_tasks)
-
-        if success_count > 0:
-            message = f"成功拆解任务 #{parent_task_id}，创建了 {success_count} 个子任务"
-            if fail_count > 0:
-                message += f"，失败 {fail_count} 个"
-
-            return ApiResponse.success_response({
-                'parent_task_id': parent_task_id,
-                'updated_title': updated_title,
-                'task_info': task_info,
-                'created_tasks': created_tasks,
-                'failed_tasks': failed_tasks,
-                'success_count': success_count,
-                'fail_count': fail_count
-            })
         else:
+            # 交互模式：收集任务创建信息
+            task_info = self.interactive_input.collect_task_info(story.get('title', ''))
+            if not task_info:
+                return ApiResponse.error_response(
+                    ErrorCode.USER_CANCELLED,
+                    "已取消任务创建"
+                )
+
+        # 从 task_info 获取更新后的需求标题
+        updated_title = task_info['updated_title']
+        
+        # 步骤2: 调用 API 更新禅道中的需求标题
+        self.logger.info(f"正在更新需求 #{story_id} 的标题为: {updated_title}")
+        update_result = self.api_client.update_story_title(int(story_id), updated_title)
+        if not update_result.success:
+            error_msg = f"更新需求标题失败: {update_result.error.message if update_result.error else '未知错误'}"
+            self.logger.error(error_msg)
             return ApiResponse.error_response(
                 ErrorCode.API_ERROR,
-                f"拆解失败，所有子任务创建失败"
+                f"步骤2失败：{error_msg}，任务创建已中止"
+            )
+        else:
+            self.logger.info(f"需求标题更新成功: {updated_title}")
+
+        # 步骤2.5: 评审需求（变更后状态会变成"已变更"，需要评审改回"已激活"）
+        self.logger.info(f"正在评审需求 #{story_id}")
+        review_result = self.api_client.review_story(
+            int(story_id),
+            result='pass',
+            assigned_to=task_info.get('assigned_to'),
+            estimate=task_info.get('task_hours'),
+            comment='需求已拆解并评审通过，准备开发'
+        )
+        if review_result.success:
+            self.logger.info(f"需求 #{story_id} 评审成功")
+        else:
+            # 评审失败不阻断流程，只记录警告
+            self.logger.warning(f"需求 #{story_id} 评审失败: {review_result.error.message if review_result.error else '未知错误'}")
+
+        # 步骤3: 选择项目
+        self.logger.info(f"正在选择项目")
+        select_result = self._select_project()
+        if not select_result.success:
+            error_msg = f"选择项目失败: {select_result.error.message if select_result.error else '未知错误'}"
+            self.logger.error(error_msg)
+            return ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                f"步骤3失败：{error_msg}，任务创建已中止"
+            )
+        else:
+            execution_id = select_result.data.get('execution_id', 0)
+            self.logger.info(f"已选择项目 #{execution_id}")
+
+        # 步骤4: 创建任务
+        return self._perform_create(
+            int(story_id),
+            task_info,
+            updated_title,
+            execution_id
+        )
+
+    def _select_project(self) -> ApiResponse:
+        """
+        选择项目
+
+        获取配置的默认项目ID，或让用户选择项目
+
+        Returns:
+            选择结果，包含 execution_id
+        """
+        # 获取配置的默认项目名称
+        config = self.interactive_input.config.get_zentao_config()
+        default_project_name = config.get('task_creation', {}).get('default_project_name')
+
+        # 获取所有可用的项目
+        executions_result = self.api_client.get_executions()
+        if not executions_result.success:
+            return ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                f"获取项目列表失败: {executions_result.error.message if executions_result.error else '未知错误'}"
             )
 
-    def _calculate_deadline(self, deadline_text: str) -> Optional[str]:
+        executions = executions_result.data
+
+        # 选择项目
+        selected_execution_id = self.interactive_input.select_execution(
+            executions,
+            default_project_name=default_project_name
+        )
+
+        if not selected_execution_id:
+            return ApiResponse.error_response(
+                ErrorCode.USER_CANCELLED,
+                "未选择项目，已取消任务创建"
+            )
+
+        return ApiResponse.success_response({
+            'execution_id': selected_execution_id,
+            'message': '已选择项目'
+        })
+
+    def _perform_create(self, story_id: int, task_info: dict, updated_title: str, execution_id: int) -> ApiResponse:
+        """
+        执行实际的任务创建操作
+
+        Args:
+            story_id: 需求ID
+            task_info: 任务信息
+            updated_title: 更新后的需求标题
+            execution_id: 执行/项目ID
+
+        Returns:
+            创建结果
+        """
+        self.logger.info(f"从需求 #{story_id} 创建任务")
+        
+        # 获取更新后的需求标题
+        final_updated_title = task_info.get('updated_title', updated_title)
+        
+        # 生成任务标题（使用更新后的需求标题）
+        # final_updated_title 已经包含：【等级】【标签1】【标签2】【标签N】YYMMDD 原标题
+        task_title = f"【研发】{final_updated_title}"
+        
+        try:
+            # 计算截止日期
+            deadline = self._calculate_deadline(task_info['deadline'])
+
+            # 创建任务
+            result = self.api_client.create_task(
+                execution_id=execution_id,
+                name=task_title,  # 使用生成的任务标题作为任务名称
+                assigned_to=task_info['assigned_to'] if task_info['assigned_to'] else None,
+                estimate=task_info['task_hours'] if task_info['task_hours'] else 0,
+                deadline=deadline,
+                story_id=story_id  # 关联到需求
+            )
+
+            if result.success:
+                created_task = result.data
+                self.logger.info(f"成功创建任务 #{created_task.get('id')}: {task_title}")
+                
+                return ApiResponse.success_response({
+                    'story_id': story_id,
+                    'updated_title': updated_title,
+                    'task_info': task_info,
+                    'created_task': {
+                        'id': created_task.get('id'),
+                        'name': task_title,
+                    },
+                    'message': f'成功从需求 #{story_id} 创建任务，任务标题已更新为: {updated_title}'
+                })
+            else:
+                error_msg = result.error.message if result.error else '未知错误'
+                self.logger.error(f"创建任务失败: {error_msg}")
+                return ApiResponse.error_response(
+                    ErrorCode.API_ERROR,
+                    f"创建任务失败: {error_msg}"
+                )
+
+        except Exception as e:
+            self.logger.error(f"创建任务异常: {str(e)}")
+            return ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                f"创建任务失败: {str(e)}"
+            )
+
+    def _calculate_deadline(self, deadline_choice: str) -> Optional[str]:
         """
         计算截止日期
 
         Args:
-            deadline_text: 截至时间文本（本周周五/下周周五）
+            deadline_choice: 用户选择的截止日期（本周周五/下周周五）
 
         Returns:
-            截至日期字符串（YYYY-MM-DD 格式）
+            格式化的日期字符串 (YYYY-MM-DD) 或 None
         """
-        if not deadline_text:
-            return None
-
         from datetime import datetime, timedelta
+
+        if not deadline_choice:
+            return None
 
         today = datetime.now()
         weekday = today.weekday()  # 0=周一, 6=周日
 
-        # 计算本周周五
-        days_to_friday = 4 - weekday  # 周五=4
-        if days_to_friday < 0:
-            days_to_friday += 7  # 已过周五，下周
+        if deadline_choice == '本周周五':
+            # 计算到本周五的天数
+            days_to_friday = (4 - weekday) % 7
+            if days_to_friday == 0:
+                days_to_friday = 7  # 如果今天就是周五，则到下周五
+            target_date = today + timedelta(days=days_to_friday)
+        elif deadline_choice == '下周周五':
+            # 计算到下周五的天数
+            days_to_friday = (4 - weekday) % 7 + 7
+            target_date = today + timedelta(days=days_to_friday)
+        else:
+            return None
 
-        this_friday = today + timedelta(days=days_to_friday)
-
-        # 计算下周周五
-        next_friday = this_friday + timedelta(days=7)
-
-        if '本周周五' in deadline_text:
-            return this_friday.strftime('%Y-%m-%d')
-        elif '下周周五' in deadline_text:
-            return next_friday.strftime('%Y-%m-%d')
-
-        return None
+        return target_date.strftime('%Y-%m-%d')
 
     def format_display(self, data: dict) -> str:
         """
-        格式化显示拆解结果
+        格式化显示创建结果
 
         Args:
-            data: 拆解结果数据
+            data: 创建结果数据
 
         Returns:
-            格式化后的文本
+            格式化的显示文本
         """
-        parent_id = data.get('parent_task_id')
-        updated_title = data.get('updated_title', '')
-        task_info = data.get('task_info', {})
-        created_tasks = data.get('created_tasks', [])
-        failed_tasks = data.get('failed_tasks', [])
-        success_count = data.get('success_count', 0)
-        fail_count = data.get('fail_count', 0)
+        if not data:
+            return "任务创建完成"
 
-        lines = [f"任务拆解结果 (父任务: #{parent_id})\n"]
-        lines.append(f"成功: {success_count} 个 | 失败: {fail_count} 个\n\n")
+        lines = []
+        lines.append("=" * 60)
+        lines.append("任务创建成功")
+        lines.append("=" * 60)
 
-        if updated_title:
-            lines.append(f"更新后的需求标题:\n  {updated_title[:100]}\n\n")
+        # 显示需求信息
+        if 'story_id' in data:
+            lines.append(f"需求ID: #{data['story_id']}")
 
-        if task_info:
-            lines.append("任务信息:\n")
-            lines.append(f"  需求等级: {task_info.get('grade', '')}\n")
-            lines.append(f"  需求优先级: {task_info.get('priority', '')}\n")
-            lines.append(f"  需求上线时间: {task_info.get('online_time', '')}\n")
-            lines.append(f"  任务执行人: {task_info.get('assigned_to', '未设置')}\n")
-            lines.append(f"  任务时长: {task_info.get('task_hours', '未设置')} 小时\n")
-            lines.append(f"  任务截至时间: {task_info.get('deadline', '未设置')}\n\n")
+        # 显示更新后的需求标题
+        if 'updated_title' in data:
+            lines.append(f"需求标题: {data['updated_title']}")
 
-        if created_tasks:
-            lines.append("成功创建的子任务:\n")
-            for task in created_tasks:
-                lines.append(f"  {task['index']}. #{task['id']} - {task['name']}\n")
-            lines.append("\n")
+        # 显示创建的任务
+        if 'created_task' in data:
+            task = data['created_task']
+            lines.append("-" * 60)
+            lines.append(f"任务ID: #{task.get('id', 'N/A')}")
+            lines.append(f"任务标题: {task.get('name', 'N/A')}")
 
-        if failed_tasks:
-            lines.append("创建失败的子任务:\n")
-            for task in failed_tasks:
-                lines.append(f"  {task['index']}. {task['name']} - {task['error']}\n")
+        lines.append("=" * 60)
 
-        return ''.join(lines)
+        return "\n".join(lines)

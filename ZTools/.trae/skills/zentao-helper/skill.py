@@ -47,13 +47,14 @@ class ZenTaoHelperSkill:
 
         self.logger.info("ZenTao Helper Skill 初始化完成")
 
-    def execute(self, user_input: str) -> dict:
+    def execute(self, user_input: str, **kwargs) -> dict:
         """
         Skill 主入口方法
         解析并执行自然语言指令
 
         Args:
             user_input: 用户输入的自然语言指令
+            **kwargs: 额外参数（非交互模式参数）
 
         Returns:
             执行结果字典（符合 Trae 规范）
@@ -85,7 +86,7 @@ class ZenTaoHelperSkill:
             elif intent == 'query_tasks':
                 result = self._handle_query_tasks(entities)
             elif intent == 'split_task':
-                result = self._handle_split_task(entities, user_input)
+                result = self._handle_split_task(entities, user_input, **kwargs)
             elif intent == 'assign_task':
                 result = self._handle_assign_task(entities, user_input)
             else:
@@ -341,15 +342,21 @@ class ZenTaoHelperSkill:
 
             return result
 
-    def _handle_split_task(self, entities: dict, user_input: str) -> ApiResponse:
-        """处理任务拆解意图"""
-        task_id = entities.get('task_id')
-        subtask_names = entities.get('subtask_names')
+    def _handle_split_task(self, entities: dict, user_input: str, **kwargs) -> ApiResponse:
+        """处理从需求创建任务意图"""
+        story_id = entities.get('story_id')
 
+        if not story_id:
+            return ApiResponse.error_response(
+                ErrorCode.MISSING_PARAMETER,
+                "请指定需求ID，例如：拆解需求#123"
+            )
+
+        # 从需求创建任务（支持非交互模式参数）
         result = self.task_splitter.execute(
-            parent_task_id=task_id,
-            subtask_names=subtask_names,
-            user_input=user_input
+            story_id=story_id,
+            user_input=user_input,
+            **kwargs
         )
 
         if result.success:
@@ -358,7 +365,7 @@ class ZenTaoHelperSkill:
             return ApiResponse.success_response({
                 'message': display_text,
                 'data': result.data,
-                'type': 'task_split'
+                'type': 'task_create'
             })
 
         return result
@@ -403,14 +410,42 @@ def skill_main(user_input: str) -> dict:
 
 # 命令行测试入口
 if __name__ == "__main__":
-    import sys
+    import argparse
+
+    # 创建参数解析器
+    parser = argparse.ArgumentParser(description='ZenTao Helper Skill')
+    parser.add_argument('command', nargs='*', help='用户指令')
+    parser.add_argument('--grade', '-g', choices=['A-', 'A', 'A+', 'A++', 'B'], help='需求等级')
+    parser.add_argument('--priority', '-p', choices=['非紧急', '紧急'], help='需求优先级')
+    parser.add_argument('--online-time', '-o', help='需求上线时间（如：下周周一、下下周周四、260331）')
+    parser.add_argument('--assigned-to', '-a', help='任务执行人')
+    parser.add_argument('--hours', type=float, help='任务时长（小时）')
+    parser.add_argument('--deadline', '-d', help='任务截至时间（如：本周周五、下周周五）')
+
+    args = parser.parse_args()
 
     # 检查是否有命令行参数
-    if len(sys.argv) > 1:
+    if args.command:
         # 从命令行参数获取指令
-        user_input = ' '.join(sys.argv[1:])
+        user_input = ' '.join(args.command)
         skill = ZenTaoHelperSkill()
-        result = skill.execute(user_input)
+        
+        # 构建额外参数
+        kwargs = {}
+        if args.grade:
+            kwargs['grade'] = args.grade
+        if args.priority:
+            kwargs['priority'] = args.priority
+        if args.online_time:
+            kwargs['online_time'] = args.online_time
+        if args.assigned_to:
+            kwargs['assigned_to'] = args.assigned_to
+        if args.hours:
+            kwargs['task_hours'] = args.hours
+        if args.deadline:
+            kwargs['deadline'] = args.deadline
+
+        result = skill.execute(user_input, **kwargs)
 
         if result.get('success'):
             print(result.get('data', {}).get('message', '操作成功'))

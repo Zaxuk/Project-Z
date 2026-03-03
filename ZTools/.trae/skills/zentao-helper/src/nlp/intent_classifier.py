@@ -108,9 +108,30 @@ class IntentClassifier:
         best_intent = 'unknown'
         max_score = 0
 
+        # 关键词权重映射
+        keyword_weights = {
+            '拆解': 2,
+            '分解': 2,
+            'split': 2,
+            '拆分': 2,
+            '拆成': 2,
+            '拆分为': 2,
+            '拆解成': 2,
+            '分解成': 2,
+            '分配': 2,
+            '指派': 2,
+            'assign': 2,
+            '给': 1,
+            '指派给': 2,
+            '分配给': 2
+        }
+
         for intent, keywords in self.INTENTS.items():
-            # 计算匹配分数（匹配的关键词数量）
-            score = sum(1 for kw in keywords if kw.lower() in text_lower)
+            # 计算匹配分数（匹配的关键词数量，带权重）
+            score = 0
+            for kw in keywords:
+                if kw.lower() in text_lower:
+                    score += keyword_weights.get(kw, 1)
 
             if score > max_score:
                 max_score = score

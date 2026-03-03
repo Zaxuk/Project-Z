@@ -62,6 +62,10 @@ class ZentaoApiClient:
         """设置会话 cookies"""
         self.session.cookies.update(cookies)
 
+    def get_cookies(self) -> Dict[str, str]:
+        """获取当前会话 cookies"""
+        return dict(self.session.cookies)
+
     def _get_users(self) -> Dict[str, User]:
         """
         获取用户列表（带缓存）
@@ -646,6 +650,313 @@ class ZentaoApiClient:
         
         return 0
 
+    def get_story(self, story_id: int) -> ApiResponse:
+        """
+        获取需求详情
+        
+        Args:
+            story_id: 需求ID
+            
+        Returns:
+            需求详情
+        """
+        try:
+            url = f"{self.base_url}/story-view-{story_id}.json"
+            response = self.session.get(url, timeout=self.timeout)
+            response.encoding = 'utf-8'
+            
+            if response.status_code == 200:
+                try:
+                    result = response.json()
+                    if result.get('status') == 'success' and 'data' in result:
+                        story_data = json.loads(result['data'])
+                        
+                        if 'story' in story_data:
+                            story = story_data['story']
+                            
+                            # 处理计划字段（可能是字典或字符串）
+                            plan = story.get('planTitle', '')
+                            if isinstance(plan, dict):
+                                plan = list(plan.values())[0] if plan else ''
+                            
+                            # 获取关联的执行/项目ID
+                            # 禅道8.x中，需求可能关联多个执行（项目）
+                            execution_id = 0
+                            execution_name = ''
+                            executions = []
+                            
+                            # 方式1: 从 executions 数组获取
+                            if 'executions' in story:
+                                executions = story['executions']
+                                if executions and isinstance(executions, list) and len(executions) > 0:
+                                    # 取第一个执行（项目）
+                                    first_exec = executions[0] if isinstance(executions[0], dict) else {'id': executions[0]}
+                                    execution_id = first_exec.get('id', 0) if isinstance(first_exec, dict) else int(first_exec)
+                                    execution_name = first_exec.get('name', '') if isinstance(first_exec, dict) else ''
+                            # 方式2: 从 plan 字段获取（可能是字典）
+                            elif 'plan' in story and isinstance(story['plan'], dict):
+                                plan_keys = list(story['plan'].keys())
+                                if plan_keys:
+                                    execution_id = int(plan_keys[0])
+                            # 方式3: 直接从 execution 字段获取
+                            elif 'execution' in story:
+                                execution_id = story['execution']
+                            
+                            self.logger.info(f"需求 #{story_id} 关联的执行ID: {execution_id}, 执行名称: {execution_name}")
+                            
+                            story_detail = {
+                                'id': story.get('id', 0),
+                                'title': story.get('title', ''),
+                                'status': story.get('status', ''),
+                                'priority': story.get('pri', 0),
+                                'assigned_to': story.get('assignedTo', ''),
+                                'opened_by': story.get('openedBy', ''),
+                                'opened_date': story.get('openedDate', ''),
+                                'product': story.get('productTitle', ''),
+                                'product_id': story.get('product', 0),
+                                'plan': plan,
+                                'stage': story.get('stage', ''),
+                                'estimate': story.get('estimate', 0),
+                                'execution': execution_id,
+                                'execution_name': execution_name,
+                                'executions': executions
+                            }
+                            
+                            return ApiResponse.success_response(story_detail)
+                        else:
+                            # 没有story字段，可能是HTML页面
+                            self.logger.error(f"需求 #{story_id} 返回数据中没有story字段")
+                            return ApiResponse.error_response(
+                                ErrorCode.STORY_NOT_FOUND,
+                                f"需求 #{story_id} 不存在或无法访问"
+                            )
+                            
+                except Exception as e:
+                    self.logger.warning(f"解析需求 {story_id} 详情失败: {str(e)}")
+                    return ApiResponse.error_response(
+                        ErrorCode.API_ERROR,
+                        f"解析需求详情失败: {str(e)}"
+                    )
+            else:
+                self.logger.error(f"获取需求详情失败: HTTP {response.status_code}")
+                return ApiResponse.error_response(
+                    ErrorCode.API_ERROR,
+                    f"获取需求详情失败: HTTP {response.status_code}"
+                )
+                
+        except Exception as e:
+            self.logger.error(f"获取需求详情异常: {str(e)}")
+            return ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                f"获取需求详情失败: {str(e)}"
+            )
+
+    def update_story_title(self, story_id: int, new_title: str) -> ApiResponse:
+        """
+        更新需求标题 (适配 8.x 版本)
+        使用 story-change API 进行变更
+        
+        Args:
+            story_id: 需求ID
+            new_title: 新的需求标题
+            
+        Returns:
+            更新结果
+        """
+        try:
+            # 首先获取需求的当前信息
+            story_result = self.get_story(story_id)
+            if not story_result.success:
+                return ApiResponse.error_response(
+                    ErrorCode.STORY_NOT_FOUND,
+                    f"需求 #{story_id} 不存在或无法访问"
+                )
+            
+            story_data = story_result.data
+            
+            # 禅道 8.x 使用 story-change API 进行变更
+            # 变更需求标题需要调用 /story-change-{story_id}.json
+            url = f"{self.base_url}/story-change-{story_id}.json"
+            
+            # 准备表单数据
+            form_data = {
+                'title': new_title,
+                'product': story_data.get('product_id', 0),
+                'module': 0,
+                'plan': 0,
+                'source': story_data.get('source', ''),
+                'pri': story_data.get('priority', 3),
+                'estimate': story_data.get('estimate', 0),
+                'stage': story_data.get('stage', 'wait'),
+                'assignedTo': story_data.get('assigned_to', ''),
+                'comment': '通过 ZenTao Helper 自动更新需求标题',
+            }
+            
+            self.logger.info(f"变更需求 #{story_id} 标题为: {new_title}")
+            
+            # 发送 POST 请求
+            response = self.session.post(url, data=form_data, timeout=self.timeout)
+            response.encoding = 'utf-8'
+            
+            if response.status_code == 200:
+                try:
+                    result = response.json()
+                    if result.get('status') == 'success' or result.get('result') == 'success':
+                        self.logger.info(f"需求 #{story_id} 标题变更成功")
+                        return ApiResponse.success_response({
+                            'story_id': story_id,
+                            'new_title': new_title,
+                            'message': '需求标题变更成功'
+                        })
+                    else:
+                        error_msg = result.get('message', result.get('reason', '变更失败'))
+                        self.logger.error(f"需求标题变更失败: {error_msg}")
+                        return ApiResponse.error_response(
+                            ErrorCode.API_ERROR,
+                            f"需求标题变更失败: {error_msg}"
+                        )
+                except ValueError:
+                    # 如果不是 JSON 响应，检查页面内容
+                    if 'error' in response.text.lower() or '错误' in response.text:
+                        self.logger.error("需求标题变更失败: 页面返回错误")
+                        return ApiResponse.error_response(
+                            ErrorCode.API_ERROR,
+                            "需求标题变更失败，请检查权限或需求状态"
+                        )
+                    else:
+                        self.logger.info(f"需求 #{story_id} 标题可能已变更成功")
+                        return ApiResponse.success_response({
+                            'story_id': story_id,
+                            'new_title': new_title,
+                            'message': '需求标题可能已变更成功，请检查需求详情'
+                        })
+            else:
+                self.logger.error(f"变更需求标题失败: HTTP {response.status_code}")
+                return ApiResponse.error_response(
+                    ErrorCode.API_ERROR,
+                    f"变更需求标题失败: HTTP {response.status_code}"
+                )
+                
+        except requests.Timeout:
+            self.logger.error("更新需求标题超时")
+            return ApiResponse.error_response(
+                ErrorCode.TIMEOUT,
+                ErrorMessage.TIMEOUT
+            )
+        except Exception as e:
+            self.logger.error(f"更新需求标题异常: {str(e)}")
+            return ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                f"更新需求标题失败: {str(e)}"
+            )
+
+    def review_story(self, story_id: int, result: str = 'pass', assigned_to: str = None, 
+                     estimate: float = None, comment: str = '') -> ApiResponse:
+        """
+        评审需求 (适配 8.x 版本)
+        用于在变更需求后，将需求状态从"已变更"改回"已激活"
+        
+        Args:
+            story_id: 需求ID
+            result: 评审结果 ('pass' 通过, 'revert' 撤销变更, 'clarify' 有待明确)
+            assigned_to: 指派给（用户名）
+            estimate: 预计工时
+            comment: 评审备注
+            
+        Returns:
+            评审结果
+        """
+        try:
+            # 首先获取需求的当前信息
+            story_result = self.get_story(story_id)
+            if not story_result.success:
+                return ApiResponse.error_response(
+                    ErrorCode.STORY_NOT_FOUND,
+                    f"需求 #{story_id} 不存在或无法访问"
+                )
+            
+            story_data = story_result.data
+            
+            # 如果需求状态不是 changed（已变更），则不需要评审
+            if story_data.get('status') != 'changed':
+                self.logger.info(f"需求 #{story_id} 状态为 {story_data.get('status')}，无需评审")
+                return ApiResponse.success_response({
+                    'story_id': story_id,
+                    'status': story_data.get('status'),
+                    'message': '需求状态不是已变更，无需评审'
+                })
+            
+            # 禅道 8.x 使用 story-review API 进行评审
+            url = f"{self.base_url}/story-review-{story_id}.json"
+            
+            # 准备表单数据
+            form_data = {
+                'result': result,
+                'assignedTo': assigned_to if assigned_to else story_data.get('assigned_to', ''),
+                'estimate': estimate if estimate else story_data.get('estimate', 0),
+                'reviewedDate': '',  # 空字符串表示今天
+                'comment': comment if comment else '需求已评审，准备开发',
+            }
+            
+            self.logger.info(f"评审需求 #{story_id}，结果: {result}")
+            
+            # 发送 POST 请求
+            response = self.session.post(url, data=form_data, timeout=self.timeout)
+            response.encoding = 'utf-8'
+            
+            if response.status_code == 200:
+                # 检查响应（禅道通常会返回重定向脚本）
+                if 'parent.location' in response.text or 'story-view' in response.text:
+                    self.logger.info(f"需求 #{story_id} 评审成功")
+                    return ApiResponse.success_response({
+                        'story_id': story_id,
+                        'result': result,
+                        'message': '需求评审成功'
+                    })
+                else:
+                    try:
+                        result_data = response.json()
+                        if result_data.get('status') == 'success' or result_data.get('result') == 'success':
+                            self.logger.info(f"需求 #{story_id} 评审成功")
+                            return ApiResponse.success_response({
+                                'story_id': story_id,
+                                'result': result,
+                                'message': '需求评审成功'
+                            })
+                        else:
+                            error_msg = result_data.get('message', result_data.get('reason', '评审失败'))
+                            self.logger.error(f"需求评审失败: {error_msg}")
+                            return ApiResponse.error_response(
+                                ErrorCode.API_ERROR,
+                                f"需求评审失败: {error_msg}"
+                            )
+                    except ValueError:
+                        self.logger.info(f"需求 #{story_id} 可能已评审成功")
+                        return ApiResponse.success_response({
+                            'story_id': story_id,
+                            'result': result,
+                            'message': '需求可能已评审成功'
+                        })
+            else:
+                self.logger.error(f"评审需求失败: HTTP {response.status_code}")
+                return ApiResponse.error_response(
+                    ErrorCode.API_ERROR,
+                    f"评审需求失败: HTTP {response.status_code}"
+                )
+                
+        except requests.Timeout:
+            self.logger.error("评审需求超时")
+            return ApiResponse.error_response(
+                ErrorCode.TIMEOUT,
+                ErrorMessage.TIMEOUT
+            )
+        except Exception as e:
+            self.logger.error(f"评审需求异常: {str(e)}")
+            return ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                f"评审需求失败: {str(e)}"
+            )
+
     def _get_story_detail_minimal(self, story_id: int) -> Optional[Dict]:
         """
         获取需求的最小化详情（用于批量查询）
@@ -698,17 +1009,18 @@ class ZentaoApiClient:
         return None
 
     def create_task(self, execution_id: int, name: str, assigned_to: str = None,
-                    estimate: float = 0, deadline: str = None, parent_id: int = None) -> ApiResponse:
+                    estimate: float = 0, deadline: str = None, parent_id: int = None, story_id: int = None) -> ApiResponse:
         """
         创建任务 (适配 8.x 版本)
         
         Args:
-            execution_id: 执行ID/项目ID
+            execution_id: 执行ID/项目ID（必须提供）
             name: 任务名称
             assigned_to: 指派给（用户名）
             estimate: 预计工时
             deadline: 截止日期 (格式: YYYY-MM-DD)
             parent_id: 父任务ID（用于创建子任务）
+            story_id: 需求ID（用于从需求创建任务）
             
         Returns:
             创建结果
@@ -723,19 +1035,27 @@ class ZentaoApiClient:
                 'type': 'devel' if not parent_id else 'devel',  # 任务类型
                 'pri': 3,  # 优先级 (1-4)
                 'estimate': estimate if estimate else '',
-                'assignedTo': assigned_to if assigned_to else '',
+                'assignedTo[]': assigned_to if assigned_to else '',  # 注意：禅道8.x使用数组格式
+                'module': 0,  # 模块ID
+                'estStarted': '',  # 预计开始时间
                 'desc': '',
+                'mailto[]': '',  # 抄送给
+                'after': 'toTaskList',  # 创建后跳转到任务列表
             }
             
             # 如果有父任务，添加 parent 字段
             if parent_id:
                 form_data['parent'] = parent_id
             
+            # 如果有关联的需求，添加 story 字段
+            if story_id:
+                form_data['story'] = story_id
+            
             # 如果有截止日期
             if deadline:
                 form_data['deadline'] = deadline
             
-            self.logger.info(f"创建任务: {name} (execution: {execution_id})")
+            self.logger.info(f"创建任务: {name} (execution: {execution_id}, story: {story_id})")
             
             # 发送 POST 请求
             response = self.session.post(url, data=form_data, timeout=self.timeout)
@@ -743,8 +1063,8 @@ class ZentaoApiClient:
             
             if response.status_code == 200:
                 # 检查是否创建成功（通常重定向到任务列表或任务详情）
-                # 禅道创建成功后通常会跳转到 execution-task-{execution_id}.html
-                if 'execution-task' in response.url or 'task-view' in response.url:
+                # 禅道创建成功后通常会跳转到 project-task-{execution_id}.html
+                if 'project-task' in response.url or 'task-view' in response.url:
                     # 尝试从 URL 中提取新创建的任务ID
                     task_id_match = re.search(r'task-view-(\d+)\.html', response.url)
                     if task_id_match:
@@ -757,6 +1077,7 @@ class ZentaoApiClient:
                         })
                     else:
                         # 创建成功但无法获取任务ID
+                        self.logger.info("任务创建成功")
                         return ApiResponse.success_response({
                             'name': name,
                             'message': '任务创建成功'
@@ -865,6 +1186,82 @@ class ZentaoApiClient:
                 f"任务拆解失败: {str(e)}"
             )
 
+    def get_executions(self) -> ApiResponse:
+        """
+        获取执行/项目列表 (适配 8.x 版本)
+        
+        Returns:
+            执行/项目列表
+        """
+        try:
+            # 禅道 8.x 使用 my-project.json 获取项目列表
+            url = f"{self.base_url}/my-project.json"
+            response = self.session.get(url, timeout=self.timeout)
+            response.encoding = 'utf-8'
+            
+            if response.status_code == 200:
+                try:
+                    result = response.json()
+                    if result.get('status') == 'success' and 'data' in result:
+                        projects_data = json.loads(result['data'])
+                        executions = []
+                        
+                        # 处理项目数据
+                        if 'projects' in projects_data:
+                            projects_list = projects_data['projects']
+                            # 如果是列表格式
+                            if isinstance(projects_list, list):
+                                for project in projects_list:
+                                    # 过滤掉已完成(done)和已关闭(closed)的项目
+                                    status = project.get('status', '')
+                                    if status in ['done', 'closed']:
+                                        continue
+                                    executions.append({
+                                        'id': int(project.get('id', 0)),
+                                        'name': project.get('name', ''),
+                                        'status': status,
+                                        'begin': project.get('begin', ''),
+                                        'end': project.get('end', '')
+                                    })
+                            # 如果是字典格式（ID为键，名称为值）
+                            elif isinstance(projects_list, dict):
+                                for project_id, project_name in projects_list.items():
+                                    executions.append({
+                                        'id': int(project_id),
+                                        'name': project_name,
+                                        'status': '',
+                                        'begin': '',
+                                        'end': ''
+                                    })
+                        
+                        self.logger.info(f"获取到 {len(executions)} 个执行/项目")
+                        return ApiResponse.success_response(executions)
+                    else:
+                        self.logger.warning(f"获取执行列表失败: {result}")
+                        return ApiResponse.error_response(
+                            ErrorCode.API_ERROR,
+                            "获取执行列表失败"
+                        )
+                except Exception as e:
+                    self.logger.error(f"解析执行列表失败: {str(e)}")
+                    return ApiResponse.error_response(
+                        ErrorCode.API_ERROR,
+                        f"解析执行列表失败: {str(e)}"
+                    )
+            else:
+                self.logger.error(f"获取执行列表失败: HTTP {response.status_code}")
+                return ApiResponse.error_response(
+                    ErrorCode.API_ERROR,
+                    f"获取执行列表失败: HTTP {response.status_code}"
+                )
+                
+        except Exception as e:
+            self.logger.error(f"获取执行列表异常: {str(e)}")
+            return ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                f"获取执行列表失败: {str(e)}"
+            )
+
     def assign_task(self, task_id: int, username: str) -> ApiResponse:
         """
         任务分配 (适配 8.x 版本)
@@ -940,6 +1337,66 @@ class ZentaoApiClient:
             return ApiResponse.error_response(
                 ErrorCode.API_ERROR,
                 f"分配任务失败: {str(e)}"
+            )
+
+    def get_task(self, task_id: int) -> ApiResponse:
+        """
+        获取任务详情
+        
+        Args:
+            task_id: 任务ID
+            
+        Returns:
+            任务详情
+        """
+        try:
+            url = f"{self.base_url}/task-view-{task_id}.json"
+            response = self.session.get(url, timeout=self.timeout)
+            response.encoding = 'utf-8'
+            
+            if response.status_code == 200:
+                try:
+                    result = response.json()
+                    if result.get('status') == 'success' and 'data' in result:
+                        task_data = json.loads(result['data'])
+                        
+                        if 'task' in task_data:
+                            task = task_data['task']
+                            
+                            task_detail = {
+                                'id': task.get('id', 0),
+                                'title': task.get('name', ''),
+                                'status': task.get('status', ''),
+                                'priority': task.get('pri', 0),
+                                'assigned_to': task.get('assignedTo', ''),
+                                'opened_by': task.get('openedBy', ''),
+                                'opened_date': task.get('openedDate', ''),
+                                'estimate': task.get('estimate', 0),
+                                'execution': task.get('execution', 0),
+                                'project': task.get('project', 0),
+                                'parent': task.get('parent', 0)
+                            }
+                            
+                            return ApiResponse.success_response(task_detail)
+                            
+                except Exception as e:
+                    self.logger.warning(f"解析任务 {task_id} 详情失败: {str(e)}")
+                    return ApiResponse.error_response(
+                        ErrorCode.API_ERROR,
+                        f"解析任务详情失败: {str(e)}"
+                    )
+            else:
+                self.logger.error(f"获取任务详情失败: HTTP {response.status_code}")
+                return ApiResponse.error_response(
+                    ErrorCode.API_ERROR,
+                    f"获取任务详情失败: HTTP {response.status_code}"
+                )
+                
+        except Exception as e:
+            self.logger.error(f"获取任务详情异常: {str(e)}")
+            return ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                f"获取任务详情失败: {str(e)}"
             )
 
     def _get_task_detail_full(self, task_id: int) -> Optional[Dict]:

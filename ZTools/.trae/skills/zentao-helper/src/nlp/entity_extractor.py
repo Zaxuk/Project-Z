@@ -63,6 +63,7 @@ class EntityExtractor:
         - 需求#123
         - story#123
         - 需求123
+        - 需求 123
 
         Args:
             text: 用户输入的文本
@@ -72,7 +73,7 @@ class EntityExtractor:
         """
         patterns = [
             r'(?:需求|story)#(\d+)',  # 需求#123
-            r'(?:需求|story)\s*(\d+)',  # 需求123
+            r'(?:需求|story)\s*(\d+)',  # 需求123 或 需求 123
             r'(\d+)\s*(?:号|编号|id)\s*(?:需求|story)',  # 123号需求
         ]
 
@@ -83,6 +84,15 @@ class EntityExtractor:
                 if self.debug:
                     self.logger.debug(f"提取需求ID: {text} -> {story_id}")
                 return story_id
+
+        # 检查是否包含"需求"和数字的组合（用于处理"需求11530，拆解任务"这种格式）
+        story_pattern = r'需求(\d+)'
+        match = re.search(story_pattern, text)
+        if match:
+            story_id = match.group(1)
+            if self.debug:
+                self.logger.debug(f"提取需求ID: {text} -> {story_id}")
+            return story_id
 
         return None
 
@@ -330,7 +340,6 @@ class EntityExtractor:
             'task_id': self.extract_task_id(text),
             'story_id': self.extract_story_id(text),
             'username': self.extract_username(text),
-            'subtask_names': self.extract_subtask_names(text),
             'status': self.extract_status(text),
             'filter_no_task': self.extract_filter_no_task(text),
             'keywords': self.extract_keywords(text)
