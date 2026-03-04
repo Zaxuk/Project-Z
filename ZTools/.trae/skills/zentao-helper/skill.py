@@ -234,14 +234,14 @@ class ZenTaoHelperSkill:
         if result.success:
             stories = result.data.get('stories', [])
 
-            # 如果用户没有指定状态，默认过滤已计划和已立项的需求
+            # 如果用户没有指定状态，默认过滤已计划、已立项和未开始的需求
             if not status:
                 filtered_stories = [
                     story for story in stories
-                    if story.get('stage') in ['planned', 'projected']
+                    if story.get('stage') in ['planned', 'projected', 'wait']
                 ]
 
-                self.logger.debug(f"默认过滤后: {len(filtered_stories)} 个需求 (已计划/已立项)")
+                self.logger.debug(f"默认过滤后: {len(filtered_stories)} 个需求 (已计划/已立项/未开始)")
             elif status == 'all':
                 # 用户要求查看所有需求，不过滤
                 filtered_stories = stories
