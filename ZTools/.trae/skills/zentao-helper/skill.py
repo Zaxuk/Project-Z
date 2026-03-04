@@ -305,8 +305,6 @@ class ZenTaoHelperSkill:
         """
         # 强制设置 filter_no_task=True，复用查询需求的逻辑
         entities['filter_no_task'] = True
-        # 未分配需求查询所有阶段，不进行阶段过滤
-        entities['status'] = 'all'
         return self._handle_query_stories(entities)
 
     def _handle_query_tasks(self, entities: dict) -> ApiResponse:
