@@ -165,7 +165,7 @@ graph TB
   - **TaskAssigner**：任务分配功能
 
 #### 3.2.5 工具层
-- **Logger**：符合 Manifesto 要求的结构化 JSON 日志
+- **Logger**：符合 AGENTS 要求的结构化 JSON 日志
 - **ApiResponse**：统一的 API 响应结构
 - **ConfigLoader**：配置文件加载和管理
 - **InteractiveInput**：交互式输入处理器，收集任务创建信息

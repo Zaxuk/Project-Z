@@ -1,5 +1,5 @@
 """
-统一 API 响应结构 (Manifesto 要求)
+统一 API 响应结构 (AGENTS 要求)
 所有内部 API 必须返回统一的 JSON 结构
 """
 
@@ -20,7 +20,7 @@ class ApiError:
 class ApiResponse:
     """
     统一 API 响应结构
-    符合 Manifesto 要求的内部响应标准
+    符合 AGENTS 要求的内部响应标准
     """
     success: bool
     data: Any = None

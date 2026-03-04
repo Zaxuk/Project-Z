@@ -1,5 +1,5 @@
 """
-结构化日志模块 (Manifesto 要求)
+结构化日志模块 (AGENTS 要求)
 使用 JSON 格式输出，便于日志分析和追踪
 """
 
@@ -44,7 +44,7 @@ class JsonFormatter(logging.Formatter):
 
 
 class Logger:
-    """日志管理器，符合 Manifesto 要求的结构化日志"""
+    """日志管理器，符合 AGENTS 要求的结构化日志"""
 
     def __init__(self, name: str = "ZenTaoHelper", level: str = "INFO", format_type: str = "json"):
         self.logger = logging.getLogger(name)

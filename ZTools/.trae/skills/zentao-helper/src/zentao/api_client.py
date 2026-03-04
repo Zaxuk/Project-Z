@@ -1,6 +1,6 @@
 """
 禅道 API 客户端 (支持禅道 8.x 版本)
-实现统一的 API 调用接口，含重试/熔断机制（Manifesto 要求）
+实现统一的 API 调用接口，含重试/熔断机制（AGENTS 要求）
 """
 
 import requests
@@ -39,7 +39,7 @@ class ZentaoApiClient:
     def _create_session(self) -> requests.Session:
         """
         创建带重试机制的 HTTP 会话
-        实现指数退避重试策略（Manifesto 要求）
+        实现指数退避重试策略（AGENTS 要求）
         """
         session = requests.Session()
 
