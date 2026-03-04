@@ -727,6 +727,7 @@ class ZentaoApiClient:
                             story_detail = {
                                 'id': story.get('id', 0),
                                 'title': story.get('title', ''),
+                                'content': story.get('content', ''),
                                 'status': story.get('status', ''),
                                 'priority': story.get('pri', 0),
                                 'assigned_to': story.get('assignedTo', ''),
@@ -801,6 +802,7 @@ class ZentaoApiClient:
             # 准备表单数据
             form_data = {
                 'title': new_title,
+                'content': story_data.get('content', ''),
                 'product': story_data.get('product_id', 0),
                 'module': 0,
                 'plan': 0,

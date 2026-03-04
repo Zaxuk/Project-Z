@@ -201,7 +201,7 @@ class InteractiveInput:
         Returns:
             上线时间字符串
         """
-        default_rule = self.config.get_zentao_config().get('task_creation', {}).get('default_online_time', 'next_monday')
+        default_rule = self.config.get_zentao_config().get('task_creation', {}).get('default_online_time', 'next_next_monday')
         default_text = self._get_online_time_text(default_rule)
 
         while True:
@@ -434,7 +434,8 @@ class InteractiveInput:
             'next_tuesday': '下周周二',
             'next_wednesday': '下周周三',
             'next_thursday': '下周周四',
-            'next_friday': '下周周五'
+            'next_friday': '下周周五',
+            'next_next_monday': '下下周周一'
         }
         return time_map.get(rule, rule)
 
