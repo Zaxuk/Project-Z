@@ -185,6 +185,9 @@ def split_story_interactive(skill):
             continue
         break
 
+    # 计算上线时间的 YYMMDD 格式
+    online_date = updater._format_online_time(online_time)
+    
     # 确认信息
     print()
     print("=" * 43)
@@ -193,7 +196,7 @@ def split_story_interactive(skill):
     print(f"  需求ID: {story_id}")
     print(f"  需求等级: {grade}")
     print(f"  是否紧急: {priority}")
-    print(f"  上线时间: {online_time}")
+    print(f"  上线时间: {online_time} ({online_date})")
     print(f"  执行人: {assigned_to}")
     print(f"  任务时长: {hours} 小时")
     print(f"  截止时间: {deadline}")
