@@ -8,6 +8,8 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from skill import ZenTaoHelperSkill
+from utils.config_loader import get_config
+from utils.story_title_updater import StoryTitleUpdater
 
 
 def clear_screen():
@@ -65,12 +67,12 @@ def split_story_interactive(skill):
         grade_choice = input("选择 (1-5/b, 直接回车=A+): ").strip()
         if grade_choice.lower() == 'b':
             return split_story_interactive(skill)
-        if not grade_choice or grade_choice == '1':
+        if not grade_choice or grade_choice == '3':
+            grade = 'A+'
+        elif grade_choice == '1':
             grade = 'A-'
         elif grade_choice == '2':
             grade = 'A'
-        elif grade_choice == '3':
-            grade = 'A+'
         elif grade_choice == '4':
             grade = 'A++'
         elif grade_choice == '5':
@@ -101,11 +103,18 @@ def split_story_interactive(skill):
 
     # 输入上线时间
     print()
+    # 计算各选项的具体日期
+    updater = StoryTitleUpdater()
+    next_monday = updater._format_online_time('下周周一')
+    next_thursday = updater._format_online_time('下周周四')
+    next_next_monday = updater._format_online_time('下下周周一')
+    next_next_thursday = updater._format_online_time('下下周周四')
+    
     print("请选择需求上线时间 (默认: 下下周周一):")
-    print("  1. 下周周一")
-    print("  2. 下周周四")
-    print("  3. 下下周周一 (默认)")
-    print("  4. 下下周周四")
+    print(f"  1. 下周周一 ({next_monday})")
+    print(f"  2. 下周周四 ({next_thursday})")
+    print(f"  3. 下下周周一 (默认) ({next_next_monday})")
+    print(f"  4. 下下周周四 ({next_next_thursday})")
     print("  b. 返回上一步")
     while True:
         online_choice = input("选择 (1-4/b, 直接回车=下下周周一): ").strip()
@@ -132,14 +141,29 @@ def split_story_interactive(skill):
     if not assigned_to:
         assigned_to = 'zhuxu'
 
+    # 计算默认任务时长
+    config_loader = get_config()
+    grade_hours = config_loader.get('zentao.task_creation.grade_hours', {})
+    default_hours = grade_hours.get(grade, 8)  # 默认8小时
+
     # 输入任务时长
     print()
     while True:
-        hours = input("请输入任务时长/小时 (默认: 8, 输入 b 返回): ").strip()
-        if hours.lower() == 'b':
-            return split_story_interactive(skill)
-        if not hours:
-            hours = '8'
+        if default_hours is None:
+            # B等级需要用户输入
+            hours = input("请输入任务时长/小时 (输入 b 返回): ").strip()
+            if hours.lower() == 'b':
+                return split_story_interactive(skill)
+            if not hours:
+                print("任务时长不能为空，请重新输入")
+                continue
+        else:
+            # 其他等级可以使用默认值
+            hours = input(f"请输入任务时长/小时 (默认: {default_hours}, 输入 b 返回): ").strip()
+            if hours.lower() == 'b':
+                return split_story_interactive(skill)
+            if not hours:
+                hours = str(default_hours)
         break
 
     # 输入截止时间

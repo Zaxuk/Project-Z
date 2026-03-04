@@ -197,21 +197,26 @@ class StoryTitleUpdater:
         weekday = today.weekday()  # 0=周一, 6=周日
 
         # 处理相对时间描述
+        # 计算到本周一的天数差（本周一为基准）
+        days_since_monday = weekday  # 0=周一, 1=周二, ..., 6=周日
+        
         if '下下周' in online_time:
-            # 下下周
-            days_to_add = 14
+            # 下下周 = 本周一 + 14天 + 目标星期几偏移
             if '周一' in online_time:
-                days_to_add += (0 - weekday) % 7
+                # 下下周一 = 本周一 + 14天
+                days_to_add = 14 - days_since_monday
             elif '周四' in online_time:
-                days_to_add += (3 - weekday) % 7
+                # 下下周四 = 本周一 + 14天 + 3天
+                days_to_add = 17 - days_since_monday
             target_date = today + timedelta(days=days_to_add)
         elif '下周' in online_time:
-            # 下周
-            days_to_add = 7
+            # 下周 = 本周一 + 7天 + 目标星期几偏移
             if '周一' in online_time:
-                days_to_add += (0 - weekday) % 7
+                # 下周一 = 本周一 + 7天
+                days_to_add = 7 - days_since_monday
             elif '周四' in online_time:
-                days_to_add += (3 - weekday) % 7
+                # 下周四 = 本周一 + 7天 + 3天
+                days_to_add = 10 - days_since_monday
             target_date = today + timedelta(days=days_to_add)
         elif re.match(r'^\d{4}-\d{2}-\d{2}$', online_time):
             # YYYY-MM-DD 格式
@@ -224,7 +229,7 @@ class StoryTitleUpdater:
             return online_time[2:]
         else:
             # 默认返回下周周一
-            days_to_add = 7 + (0 - weekday) % 7
+            days_to_add = 7 - days_since_monday
             target_date = today + timedelta(days=days_to_add)
 
         # 返回 YYMMDD 格式
