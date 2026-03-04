@@ -2,6 +2,26 @@
 
 本文件记录项目的重要变更。
 
+## [2026-03-04] v0.7.5 - 脚本优化与虚拟环境支持
+
+### 脚本优化
+
+- **PowerShell 脚本编码修复**: 解决中文乱码问题
+  - 使用 UTF-8 with BOM 编码保存脚本文件
+  - 替换 Unicode 特殊字符为文本替代（[OK], [FAIL], [WARN]）
+
+- **脚本暂停功能**: 防止右键运行脚本时窗口自动关闭
+  - setup.ps1 和 verify_deployment.ps1 末尾添加 `Read-Host "按 Enter 键退出"`
+
+- **依赖检查完善**: verify_deployment.ps1 添加 urllib3 依赖检查
+  - 确保验证脚本检查的依赖与 requirements.txt 完全一致
+
+### 虚拟环境支持
+
+- **zentao-tools.py 自动检测虚拟环境**: 脚本启动时自动检测并加载虚拟环境依赖
+  - 无需手动激活虚拟环境即可运行脚本
+  - 支持 Windows 和 Linux/macOS 路径格式
+
 ## [2026-03-04] v0.7.4 - 优化确认信息界面
 
 ### 界面优化

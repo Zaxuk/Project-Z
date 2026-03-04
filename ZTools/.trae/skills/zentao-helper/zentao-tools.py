@@ -4,8 +4,18 @@
 import sys
 import os
 
-# 添加 src 目录到路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_venv_dir = os.path.join(_script_dir, 'venv')
+
+if os.name == 'nt':
+    _venv_site_packages = os.path.join(_venv_dir, 'Lib', 'site-packages')
+else:
+    _venv_site_packages = os.path.join(_venv_dir, 'lib', f'python{sys.version_info.major}.{sys.version_info.minor}', 'site-packages')
+
+if os.path.exists(_venv_site_packages):
+    sys.path.insert(0, _venv_site_packages)
+
+sys.path.insert(0, os.path.join(_script_dir, 'src'))
 
 from skill import ZenTaoHelperSkill
 from utils.config_loader import get_config
