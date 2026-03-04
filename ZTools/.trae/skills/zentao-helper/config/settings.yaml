@@ -39,10 +39,7 @@ zentao:
     default_project_name: "研发中心"
     # 默认需求上线时间规则
     # 下周周一：next_monday
-    # 下周周二：next_tuesday
-    # 下周周三：next_wednesday
     # 下周周四：next_thursday
-    # 下周周五：next_friday
     # 下下周周一：next_next_monday
     default_online_time: "next_next_monday"
     # 默认任务截至时间规则

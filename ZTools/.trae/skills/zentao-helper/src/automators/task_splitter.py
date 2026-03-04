@@ -68,14 +68,14 @@ class TaskSplitter(BaseAutomator):
 
         # 从需求创建任务
         story_result = self.api_client.get_story(int(story_id))
-        if not story_result.success:
-            return ApiResponse.error_response(
-                ErrorCode.STORY_NOT_FOUND,
-                f"需求 #{story_id} 不存在"
-            )
-
-        story = story_result.data
-        self.logger.debug(f"开始从需求 #{story_id} 创建任务: {story.get('title', '')}")
+        story = {}
+        if story_result.success:
+            story = story_result.data
+            self.logger.debug(f"开始从需求 #{story_id} 创建任务: {story.get('title', '')}")
+        else:
+            self.logger.warning(f"无法获取需求 #{story_id} 的信息，但将继续执行")
+            # 使用空字典作为默认值
+            story = {}
 
         # 判断是否为非交互模式
         non_interactive = any([grade, priority, online_time, assigned_to, task_hours, deadline])
@@ -103,18 +103,18 @@ class TaskSplitter(BaseAutomator):
         # 从 task_info 获取更新后的需求标题
         updated_title = task_info['updated_title']
         
-        # 步骤2: 调用 API 更新禅道中的需求标题
-        self.logger.debug(f"正在更新需求 #{story_id} 的标题为: {updated_title}")
-        update_result = self.api_client.update_story_title(int(story_id), updated_title)
-        if not update_result.success:
-            error_msg = f"更新需求标题失败: {update_result.error.message if update_result.error else '未知错误'}"
-            self.logger.error(error_msg)
-            return ApiResponse.error_response(
-                ErrorCode.API_ERROR,
-                f"步骤2失败：{error_msg}，任务创建已中止"
-            )
+        # 步骤2: 调用 API 更新禅道中的需求标题（只有当 updated_title 不为空时才更新）
+        if updated_title:
+            self.logger.debug(f"正在更新需求 #{story_id} 的标题为: {updated_title}")
+            update_result = self.api_client.update_story_title(int(story_id), updated_title)
+            if not update_result.success:
+                error_msg = f"更新需求标题失败: {update_result.error.message if update_result.error else '未知错误'}"
+                self.logger.error(error_msg)
+                self.logger.warning("更新需求标题失败，但将继续创建任务")
+            else:
+                self.logger.info(f"✓ 需求标题已更新: {updated_title}")
         else:
-            self.logger.info(f"✓ 需求标题已更新: {updated_title}")
+            self.logger.warning(f"无法获取更新后的需求标题，跳过更新需求标题步骤")
 
         # 步骤2.5: 评审需求（变更后状态会变成"已变更"，需要评审改回"已激活"）
         self.logger.debug(f"正在评审需求 #{story_id}")
@@ -135,17 +135,25 @@ class TaskSplitter(BaseAutomator):
 
         # 步骤3: 选择项目
         self.logger.debug(f"正在选择项目")
-        select_result = self._select_project()
-        if not select_result.success:
-            error_msg = f"选择项目失败: {select_result.error.message if select_result.error else '未知错误'}"
-            self.logger.error(error_msg)
-            return ApiResponse.error_response(
-                ErrorCode.API_ERROR,
-                f"步骤3失败：{error_msg}，任务创建已中止"
-            )
+        # 先尝试使用需求关联的执行/项目ID
+        execution_id = story.get('execution', 0)
+        execution_name = story.get('execution_name', '')
+        
+        if execution_id:
+            self.logger.info(f"使用需求关联的执行/项目: {execution_name} (ID: {execution_id})")
         else:
-            execution_id = select_result.data.get('execution_id', 0)
-            self.logger.info(f"✓ 已选择项目 #{execution_id}")
+            # 如果需求没有关联的执行/项目ID，再让用户选择
+            select_result = self._select_project()
+            if not select_result.success:
+                error_msg = f"选择项目失败: {select_result.error.message if select_result.error else '未知错误'}"
+                self.logger.error(error_msg)
+                return ApiResponse.error_response(
+                    ErrorCode.API_ERROR,
+                    f"步骤3失败：{error_msg}，任务创建已中止"
+                )
+            else:
+                execution_id = select_result.data.get('execution_id', 0)
+                self.logger.info(f"✓ 已选择项目 #{execution_id}")
 
         # 步骤4: 创建任务
         return self._perform_create(
@@ -177,6 +185,19 @@ class TaskSplitter(BaseAutomator):
             )
 
         executions = executions_result.data
+
+        # 如果配置了默认项目名称，尝试从项目列表中找到匹配的项目
+        if default_project_name and executions:
+            for exec_data in executions:
+                exec_name = exec_data.get('name', '')
+                # 支持部分匹配：配置 "都江堰" 可以匹配 "都江堰项目"
+                if default_project_name.lower() in exec_name.lower():
+                    self.logger.info(f"使用配置的默认项目: {exec_name} (ID: {exec_data.get('id')})")
+                    return ApiResponse.success_response({
+                        'execution_id': exec_data.get('id'),
+                        'message': f'已选择项目: {exec_name}'
+                    })
+            self.logger.warning(f"配置的默认项目名称 '{default_project_name}' 未找到匹配的项目")
 
         # 选择项目
         selected_execution_id = self.interactive_input.select_execution(

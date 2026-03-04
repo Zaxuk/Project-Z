@@ -201,8 +201,8 @@ class InteractiveInput:
         Returns:
             上线时间字符串
         """
-        default_rule = self.config.get_zentao_config().get('task_creation', {}).get('default_online_time', 'next_next_monday')
-        default_text = self._get_online_time_text(default_rule)
+        # 直接硬编码默认值为下下周周一，确保用户直接回车时选择正确
+        default_text = '下下周周一'
 
         while True:
             try:
@@ -503,6 +503,22 @@ class InteractiveInput:
         """
         if not executions:
             print("\n未找到可用的执行/项目")
+            # 如果没有找到可用的执行/项目，让用户手动输入
+            print("\n请手动输入执行/项目ID:")
+            while True:
+                try:
+                    execution_id_input = input("执行/项目ID (直接回车取消): ").strip()
+                    if not execution_id_input:
+                        print("已取消项目选择")
+                        return None
+                    execution_id = int(execution_id_input)
+                    if execution_id > 0:
+                        print(f"\n已选择执行/项目ID: {execution_id}")
+                        return execution_id
+                    else:
+                        print("执行/项目ID必须大于0，请重新输入")
+                except ValueError:
+                    print("无效的输入，请输入数字")
             return None
 
         # 如果配置了默认项目名称，检查是否在列表中（支持部分匹配）

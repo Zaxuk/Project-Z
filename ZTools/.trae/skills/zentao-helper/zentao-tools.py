@@ -120,12 +120,12 @@ def split_story_interactive(skill):
         online_choice = input("选择 (1-4/b, 直接回车=下下周周一): ").strip()
         if online_choice.lower() == 'b':
             return split_story_interactive(skill)
-        if not online_choice or online_choice == '1':
+        if not online_choice or online_choice == '3':
+            online_time = '下下周周一'
+        elif online_choice == '1':
             online_time = '下周周一'
         elif online_choice == '2':
             online_time = '下周周四'
-        elif online_choice == '3':
-            online_time = '下下周周一'
         elif online_choice == '4':
             online_time = '下下周周四'
         else:

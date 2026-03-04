@@ -121,6 +121,15 @@ class ZentaoApiClient:
 
             self.logger.info(f"正在请求登录接口: {login_url}")
             
+            # 创建一个新的 session，避免之前的 cookie 干扰
+            self.session = requests.Session()
+            self.session.headers.update({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'Accept': 'application/json, text/javascript, */*; q=0.01',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'X-Requested-With': 'XMLHttpRequest'
+            })
+            
             # 先获取登录页面以获取必要的 cookies
             self.session.get(f"{self.base_url}/user-login.html", timeout=self.timeout)
             
@@ -214,6 +223,11 @@ class ZentaoApiClient:
             url = f"{self.base_url}/my-story-assignedTo-id_desc-9999-1-1.json"
             response = self.session.get(url, timeout=self.timeout)
             
+            # 检查是否被重定向到登录页面
+            if 'user-login' in response.url:
+                self.logger.info("会话验证失败：被重定向到登录页面")
+                return False
+            
             if response.status_code == 200:
                 try:
                     result = response.json()
@@ -221,6 +235,12 @@ class ZentaoApiClient:
                     if result.get('status') == 'success':
                         self.logger.debug("会话验证成功")
                         return True
+                    else:
+                        # 检查返回的数据是否包含登录页面的内容
+                        data = result.get('data', '')
+                        if isinstance(data, str) and 'user-login' in data:
+                            self.logger.info("会话验证失败：返回数据包含登录页面")
+                            return False
                 except:
                     pass
             
@@ -688,12 +708,20 @@ class ZentaoApiClient:
             if response.status_code == 200:
                 try:
                     result = response.json()
+                    self.logger.debug(f"需求 #{story_id} API 响应: {json.dumps(result, ensure_ascii=False)[:1000]}")
                     if result.get('status') == 'success' and 'data' in result:
                         story_data = json.loads(result['data'])
+                        self.logger.debug(f"需求 #{story_id} 数据内容: {json.dumps(story_data, ensure_ascii=False)[:1000]}")
                         
+                        story = None
+                        # 尝试不同的数据结构
                         if 'story' in story_data:
                             story = story_data['story']
-                            
+                        elif isinstance(story_data, dict):
+                            # 如果 story_data 本身就是 story 数据
+                            story = story_data
+                        
+                        if story:
                             # 处理计划字段（可能是字典或字符串）
                             plan = story.get('planTitle', '')
                             if isinstance(plan, dict):
@@ -746,7 +774,7 @@ class ZentaoApiClient:
                             return ApiResponse.success_response(story_detail)
                         else:
                             # 没有story字段，可能是HTML页面
-                            self.logger.error(f"需求 #{story_id} 返回数据中没有story字段")
+                            self.logger.error(f"需求 #{story_id} 返回数据中没有story字段，数据结构: {list(story_data.keys()) if isinstance(story_data, dict) else type(story_data)}")
                             return ApiResponse.error_response(
                                 ErrorCode.STORY_NOT_FOUND,
                                 f"需求 #{story_id} 不存在或无法访问"
@@ -785,24 +813,26 @@ class ZentaoApiClient:
             更新结果
         """
         try:
-            # 首先获取需求的当前信息
+            # 尝试获取需求的当前信息
             story_result = self.get_story(story_id)
-            if not story_result.success:
-                return ApiResponse.error_response(
-                    ErrorCode.STORY_NOT_FOUND,
-                    f"需求 #{story_id} 不存在或无法访问"
-                )
+            story_data = {}
             
-            story_data = story_result.data
+            if story_result.success:
+                story_data = story_result.data
+                self.logger.debug(f"成功获取需求 #{story_id} 的当前信息")
+            else:
+                self.logger.warning(f"无法获取需求 #{story_id} 的当前信息，将使用默认值更新需求标题")
             
             # 禅道 8.x 使用 story-change API 进行变更
             # 变更需求标题需要调用 /story-change-{story_id}.json
             url = f"{self.base_url}/story-change-{story_id}.json"
             
-            # 准备表单数据
+            # 准备表单数据（使用默认值填充缺失的字段）
+            # 解码 HTML 实体，避免中文引号等字符被转义
+            decoded_title = html.unescape(new_title)
             form_data = {
-                'title': new_title,
-                'content': story_data.get('content', ''),
+                'title': decoded_title,
+                'spec': story_data.get('content', ''),
                 'product': story_data.get('product_id', 0),
                 'module': 0,
                 'plan': 0,
@@ -1224,37 +1254,77 @@ class ZentaoApiClient:
             if response.status_code == 200:
                 try:
                     result = response.json()
+                    self.logger.debug(f"项目列表 API 响应: {json.dumps(result, ensure_ascii=False)[:1000]}")
                     if result.get('status') == 'success' and 'data' in result:
                         projects_data = json.loads(result['data'])
-                        executions = []
+                        self.logger.debug(f"项目列表数据内容: {json.dumps(projects_data, ensure_ascii=False)[:1000]}")
                         
                         # 处理项目数据
+                        executions = []
+                        
+                        # 尝试不同的数据结构
                         if 'projects' in projects_data:
                             projects_list = projects_data['projects']
-                            # 如果是列表格式
-                            if isinstance(projects_list, list):
-                                for project in projects_list:
-                                    # 过滤掉已完成(done)和已关闭(closed)的项目
-                                    status = project.get('status', '')
-                                    if status in ['done', 'closed']:
-                                        continue
+                        else:
+                            # 如果没有 projects 字段，尝试直接使用 projects_data
+                            projects_list = projects_data
+                        
+                        # 如果是列表格式
+                        if isinstance(projects_list, list):
+                            for project in projects_list:
+                                # 过滤掉已完成(done)和已关闭(closed)的项目
+                                status = project.get('status', '')
+                                if status in ['done', 'closed']:
+                                    continue
+                                executions.append({
+                                    'id': int(project.get('id', 0)),
+                                    'name': project.get('name', ''),
+                                    'status': status,
+                                    'begin': project.get('begin', ''),
+                                    'end': project.get('end', '')
+                                })
+                        # 如果是字典格式，尝试不同的结构
+                        elif isinstance(projects_list, dict):
+                            # 首先检查字典是否包含 id 和 name 字段
+                            if 'id' in projects_list and 'name' in projects_list:
+                                # 这是一个单个项目的字典
+                                status = projects_list.get('status', '')
+                                if status not in ['done', 'closed']:
                                     executions.append({
-                                        'id': int(project.get('id', 0)),
-                                        'name': project.get('name', ''),
+                                        'id': int(projects_list.get('id', 0)),
+                                        'name': projects_list.get('name', ''),
                                         'status': status,
-                                        'begin': project.get('begin', ''),
-                                        'end': project.get('end', '')
+                                        'begin': projects_list.get('begin', ''),
+                                        'end': projects_list.get('end', '')
                                     })
-                            # 如果是字典格式（ID为键，名称为值）
-                            elif isinstance(projects_list, dict):
-                                for project_id, project_name in projects_list.items():
-                                    executions.append({
-                                        'id': int(project_id),
-                                        'name': project_name,
-                                        'status': '',
-                                        'begin': '',
-                                        'end': ''
-                                    })
+                            else:
+                                # 尝试遍历字典的键值对
+                                for key, value in projects_list.items():
+                                    # 检查值是否是字典且包含 id 和 name 字段
+                                    if isinstance(value, dict) and 'id' in value and 'name' in value:
+                                        status = value.get('status', '')
+                                        if status not in ['done', 'closed']:
+                                            executions.append({
+                                                'id': int(value.get('id', 0)),
+                                                'name': value.get('name', ''),
+                                                'status': status,
+                                                'begin': value.get('begin', ''),
+                                                'end': value.get('end', '')
+                                            })
+                                    # 检查值是否是字符串，尝试将 key 作为 id
+                                    elif isinstance(value, str):
+                                        try:
+                                            project_id = int(key)
+                                            executions.append({
+                                                'id': project_id,
+                                                'name': value,
+                                                'status': '',
+                                                'begin': '',
+                                                'end': ''
+                                            })
+                                        except ValueError:
+                                            # key 不是数字，跳过
+                                            continue
                         
                         self.logger.info(f"获取到 {len(executions)} 个执行/项目")
                         return ApiResponse.success_response(executions)
