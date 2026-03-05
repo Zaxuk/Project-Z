@@ -755,7 +755,7 @@ class ZentaoApiClient:
                             story_detail = {
                                 'id': story.get('id', 0),
                                 'title': story.get('title', ''),
-                                'content': story.get('content', ''),
+                                'content': story.get('spec', ''),  # 禅道API使用spec字段存储需求内容
                                 'status': story.get('status', ''),
                                 'priority': story.get('pri', 0),
                                 'assigned_to': story.get('assignedTo', ''),
