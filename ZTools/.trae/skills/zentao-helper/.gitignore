@@ -37,5 +37,10 @@ ENV/
 # 日志
 *.log
 
+# 测试覆盖率数据
+.coverage
+htmlcov/
+.pytest_cache/
+
 # 配置（如包含敏感信息，不应提交）
 # config/settings.yaml
