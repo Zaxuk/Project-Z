@@ -25,6 +25,7 @@
 │   │   ├── database_schema.md # 数据库设计
 │   │   └── sequence_diagrams/ # 关键业务流程时序图
 │   ├── adr/                   # 架构决策记录 (Architecture Decision Records)
+│   ├── troubleshooting/       # 问题排查指南和技术经验记录
 │   ├── current_status.md      # [核心] 系统现状快照 (定期更新)
 │   ├── changelog.md           # 每次对话中更改的内容记录
 │   └── api/                   # 对外 API 文档 (OpenAPI/Swagger)

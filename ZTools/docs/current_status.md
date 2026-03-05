@@ -135,6 +135,7 @@ ZTools/
 │   ├── design/
 │   │   └── architecture.md         # 技术架构
 │   ├── adr/                        # 架构决策记录
+│   ├── troubleshooting/            # 问题排查指南
 │   ├── api/                        # API 文档
 │   ├── changelog.md                # 变更日志
 │   └── current_status.md           # 系统现状（本文件）

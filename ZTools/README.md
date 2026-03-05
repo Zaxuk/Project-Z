@@ -144,6 +144,7 @@ ZTools/
 ├── docs/                           # 项目文档
 │   ├── spec/                       # 需求规格
 │   ├── design/                     # 设计文档
+│   ├── troubleshooting/            # 问题排查指南
 │   ├── changelog.md                # 变更日志
 │   └── current_status.md           # 系统现状
 ├── scripts/                        # 运维脚本

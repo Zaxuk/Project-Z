@@ -372,6 +372,7 @@ ZTools/
 │   ├── spec/                        # 需求规格
 │   ├── design/                      # 设计文档
 │   │   └── architecture.md
+│   ├── troubleshooting/             # 问题排查指南
 │   ├── changelog.md
 │   └── current_status.md
 │
