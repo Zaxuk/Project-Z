@@ -11,6 +11,7 @@ from ..utils.response import ApiResponse, ErrorCode, ErrorMessage
 from ..utils.logger import get_logger
 from ..utils.interactive_input import InteractiveInput
 from ..utils.story_title_updater import StoryTitleUpdater
+from ..utils.progress_bar import ProgressBar
 
 
 class TaskSplitter(BaseAutomator):
@@ -231,55 +232,71 @@ class TaskSplitter(BaseAutomator):
         """
         self.logger.debug(f"从需求 #{story_id} 创建任务")
         
-        # 获取更新后的需求标题
-        final_updated_title = task_info.get('updated_title', updated_title)
+        # 使用进度条显示创建过程
+        steps = [
+            "准备任务数据",
+            "计算截止日期",
+            "创建任务",
+            "完成"
+        ]
         
-        # 生成任务标题（使用更新后的需求标题）
-        # final_updated_title 已经包含：【等级】【标签1】【标签2】【标签N】YYMMDD 原标题
-        task_title = f"【研发】{final_updated_title}"
-        
-        try:
-            # 计算截止日期
-            deadline = self._calculate_deadline(task_info['deadline'])
-
-            # 创建任务
-            result = self.api_client.create_task(
-                execution_id=execution_id,
-                name=task_title,  # 使用生成的任务标题作为任务名称
-                assigned_to=task_info['assigned_to'] if task_info['assigned_to'] else None,
-                estimate=task_info['task_hours'] if task_info['task_hours'] else 0,
-                deadline=deadline,
-                story_id=story_id  # 关联到需求
-            )
-
-            if result.success:
-                created_task = result.data
-                self.logger.info(f"✓ 成功创建任务 #{created_task.get('id')}")
+        with ProgressBar(total=len(steps), desc="正在创建任务") as pbar:
+            # 步骤1: 准备任务数据
+            final_updated_title = task_info.get('updated_title', updated_title)
+            task_title = f"【研发】{final_updated_title}"
+            pbar.update(1)
+            pbar.set_postfix(步骤="计算截止日期")
+            
+            try:
+                # 步骤2: 计算截止日期
+                deadline = self._calculate_deadline(task_info['deadline'])
+                pbar.update(1)
+                pbar.set_postfix(步骤="创建任务")
                 
-                return ApiResponse.success_response({
-                    'story_id': story_id,
-                    'updated_title': updated_title,
-                    'task_info': task_info,
-                    'created_task': {
-                        'id': created_task.get('id'),
-                        'name': task_title,
-                    },
-                    'message': f'成功从需求 #{story_id} 创建任务，任务标题已更新为: {updated_title}'
-                })
-            else:
-                error_msg = result.error.message if result.error else '未知错误'
-                self.logger.error(f"创建任务失败: {error_msg}")
+                # 步骤3: 创建任务
+                result = self.api_client.create_task(
+                    execution_id=execution_id,
+                    name=task_title,
+                    assigned_to=task_info['assigned_to'] if task_info['assigned_to'] else None,
+                    estimate=task_info['task_hours'] if task_info['task_hours'] else 0,
+                    deadline=deadline,
+                    story_id=story_id
+                )
+                
+                pbar.update(1)
+                pbar.set_postfix(步骤="完成")
+
+                if result.success:
+                    created_task = result.data
+                    self.logger.info(f"✓ 成功创建任务 #{created_task.get('id')}")
+                    
+                    # 步骤4: 完成
+                    pbar.update(1)
+                    
+                    return ApiResponse.success_response({
+                        'story_id': story_id,
+                        'updated_title': updated_title,
+                        'task_info': task_info,
+                        'created_task': {
+                            'id': created_task.get('id'),
+                            'name': task_title,
+                        },
+                        'message': f'成功从需求 #{story_id} 创建任务，任务标题已更新为: {updated_title}'
+                    })
+                else:
+                    error_msg = result.error.message if result.error else '未知错误'
+                    self.logger.error(f"创建任务失败: {error_msg}")
+                    return ApiResponse.error_response(
+                        ErrorCode.API_ERROR,
+                        f"创建任务失败: {error_msg}"
+                    )
+
+            except Exception as e:
+                self.logger.error(f"创建任务异常: {str(e)}")
                 return ApiResponse.error_response(
                     ErrorCode.API_ERROR,
-                    f"创建任务失败: {error_msg}"
+                    f"创建任务失败: {str(e)}"
                 )
-
-        except Exception as e:
-            self.logger.error(f"创建任务异常: {str(e)}")
-            return ApiResponse.error_response(
-                ErrorCode.API_ERROR,
-                f"创建任务失败: {str(e)}"
-            )
 
     def _calculate_deadline(self, deadline_choice: str) -> Optional[str]:
         """

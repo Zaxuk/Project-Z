@@ -20,6 +20,7 @@ from src.collectors.story_collector import StoryCollector
 from src.collectors.task_collector import TaskCollector
 from src.automators.task_splitter import TaskSplitter
 from src.automators.task_assigner import TaskAssigner
+from src.utils.progress_bar import ProgressBar
 
 
 class ZenTaoHelperSkill:
@@ -268,16 +269,22 @@ class ZenTaoHelperSkill:
             if filter_no_task:
                 self.logger.debug(f"开始检查 {len(filtered_stories)} 个需求的任务创建情况...")
                 stories_no_task = []
+                
+                # 使用进度条显示检查进度
+                with ProgressBar(total=len(filtered_stories), desc="正在检查任务创建情况") as pbar:
+                    for story in filtered_stories:
+                        story_id = story.get('id', 0)
+                        task_count = self.api_client.get_story_task_count(story_id)
 
-                for story in filtered_stories:
-                    story_id = story.get('id', 0)
-                    task_count = self.api_client.get_story_task_count(story_id)
-
-                    if task_count == 0:
-                        stories_no_task.append(story)
-                        self.logger.debug(f"需求 #{story_id} 未创建任务")
-                    else:
-                        self.logger.debug(f"需求 #{story_id} 已创建 {task_count} 个任务")
+                        if task_count == 0:
+                            stories_no_task.append(story)
+                            self.logger.debug(f"需求 #{story_id} 未创建任务")
+                        else:
+                            self.logger.debug(f"需求 #{story_id} 已创建 {task_count} 个任务")
+                        
+                        # 更新进度条
+                        pbar.update(1)
+                        pbar.set_postfix(已检查=pbar.current, 未创建=len(stories_no_task))
 
                 filtered_stories = stories_no_task
                 self.logger.debug(f"过滤后: {len(filtered_stories)} 个未创建任务的需求")

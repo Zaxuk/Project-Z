@@ -7,6 +7,7 @@ from typing import Optional
 
 from .base import BaseCollector
 from ..utils.response import ApiResponse, ErrorCode, ErrorMessage
+from ..utils.progress_bar import ProgressBar
 
 
 class StoryCollector(BaseCollector):
@@ -48,22 +49,26 @@ class StoryCollector(BaseCollector):
         """
         self.logger.info(f"收集需求列表, status: {status}")
 
-        result = self.api_client.get_my_stories(status)
+        try:
+            result = self.api_client.get_my_stories(status)
 
-        if result.success:
-            stories = result.data.get('stories', [])
-            total = result.data.get('total', 0)
+            if result.success:
+                stories = result.data.get('stories', [])
+                total = result.data.get('total', 0)
 
-            self.logger.info(f"成功收集 {len(stories)} 个需求 (总计: {total})")
+                self.logger.info(f"成功收集 {len(stories)} 个需求 (总计: {total})")
 
-            return ApiResponse.success_response({
-                'stories': stories,
-                'total': total,
-                'count': len(stories)
-            })
-        else:
-            self.logger.error(f"收集需求失败: {result.error.message}")
-            return result
+                return ApiResponse.success_response({
+                    'stories': stories,
+                    'total': total,
+                    'count': len(stories)
+                })
+            else:
+                self.logger.error(f"收集需求失败: {result.error.message}")
+                return result
+
+        except Exception as e:
+            raise
 
     def format_display(self, data: dict) -> str:
         """

@@ -78,3 +78,18 @@ session:
   session_file: ".session.enc"
   # 会话有效期检查间隔（秒）
   check_interval: 300
+
+# UI 配置
+ui:
+  # 进度条配置
+  progress_bar:
+    # 是否启用进度条
+    enabled: true
+    # 进度条样式: simple(简单) / bar(完整进度条) / spinner(仅旋转动画)
+    style: "bar"
+    # 是否显示速度
+    show_speed: true
+    # 是否显示预计剩余时间
+    show_eta: true
+    # 刷新频率（秒）
+    refresh_rate: 0.1

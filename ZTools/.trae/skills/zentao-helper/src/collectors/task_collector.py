@@ -7,6 +7,7 @@ from typing import Optional
 
 from .base import BaseCollector
 from ..utils.response import ApiResponse, ErrorCode, ErrorMessage
+from ..utils.progress_bar import ProgressBar
 
 
 class TaskCollector(BaseCollector):
@@ -38,22 +39,26 @@ class TaskCollector(BaseCollector):
         """
         self.logger.info(f"收集任务列表, status: {status}")
 
-        result = self.api_client.get_my_tasks(status)
+        try:
+            result = self.api_client.get_my_tasks(status)
 
-        if result.success:
-            tasks = result.data.get('tasks', [])
-            total = result.data.get('total', 0)
+            if result.success:
+                tasks = result.data.get('tasks', [])
+                total = result.data.get('total', 0)
 
-            self.logger.info(f"成功收集 {len(tasks)} 个任务 (总计: {total})")
+                self.logger.info(f"成功收集 {len(tasks)} 个任务 (总计: {total})")
 
-            return ApiResponse.success_response({
-                'tasks': tasks,
-                'total': total,
-                'count': len(tasks)
-            })
-        else:
-            self.logger.error(f"收集任务失败: {result.error.message}")
-            return result
+                return ApiResponse.success_response({
+                    'tasks': tasks,
+                    'total': total,
+                    'count': len(tasks)
+                })
+            else:
+                self.logger.error(f"收集任务失败: {result.error.message}")
+                return result
+
+        except Exception as e:
+            raise
 
     def format_display(self, data: dict) -> str:
         """
