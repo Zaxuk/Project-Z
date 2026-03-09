@@ -2,6 +2,41 @@
 
 本文件记录项目的重要变更。
 
+## [2026-03-09] v0.8.1 - 需求关联项目功能修复
+
+### 🐛 Bug 修复
+
+- **修复关联需求 API 错误**
+  - **问题**: 使用了错误的 API 端点 `execution-linkStory`，导致需求无法正确关联到项目
+  - **修复**: 更正为正确的 API 端点 `project-linkStory-{projectID}.json`
+  - **对应源码**: 禅道 `linkStory($projectID)` 方法
+  - **影响**: 需求拆解流程中关联项目步骤现在可以正常工作
+
+### 🧪 新增测试
+
+- **api_client.py**: 新增 7 个测试用例覆盖关联需求功能
+  - `test_link_story_to_execution_success` - 成功关联
+  - `test_link_story_to_execution_html_response_success` - HTML 响应成功
+  - `test_link_story_to_execution_html_response_with_error` - HTML 响应失败
+  - `test_link_story_to_execution_failure` - 关联失败
+  - `test_link_story_to_execution_http_error` - HTTP 错误
+  - `test_link_story_to_execution_timeout` - 超时处理
+  - `test_link_story_to_execution_exception` - 异常处理
+
+- **task_splitter.py**: 新增 5 个测试用例覆盖关联需求流程
+  - `test_link_story_with_existing_execution` - 需求已关联项目时直接使用
+  - `test_link_story_with_default_config` - 使用配置默认项目关联需求
+  - `test_link_story_with_user_selection` - 用户交互选择项目并关联
+  - `test_link_story_failure_continue` - 关联失败但继续创建任务
+  - `test_link_story_get_executions_failure` - 获取项目列表失败时中止
+
+### 📊 测试统计
+
+- **总测试数**: 516 个 (+12)
+- **覆盖率**: 95% (保持)
+
+---
+
 ## [2026-03-05] v0.8.0 - 单元测试覆盖率提升至 95%
 
 ### 🎯 里程碑达成

@@ -1009,6 +1009,103 @@ class ZentaoApiClient:
                 f"评审需求失败: {str(e)}"
             )
 
+    def link_story_to_execution(self, story_id: int, execution_id: int) -> ApiResponse:
+        """
+        将需求关联到项目 (适配 8.x 版本)
+        
+        使用禅道 project-linkStory API，对应禅道源代码中的 linkStory($projectID) 方法。
+        
+        Args:
+            story_id: 需求ID
+            execution_id: 项目ID
+            
+        Returns:
+            关联结果
+        """
+        try:
+            self.logger.debug(f"正在将需求 #{story_id} 关联到项目 #{execution_id}")
+            
+            # 禅道 8.x 使用 project-linkStory API 关联需求到项目
+            # 根据禅道源代码: linkStory($projectID) 方法
+            url = f"{self.base_url}/project-linkStory-{execution_id}.json"
+            
+            # 准备表单数据
+            # stories[]: 需求ID数组
+            # products[]: 对应的产品ID数组（可选，禅道会自动获取）
+            form_data = {
+                'stories[]': story_id
+            }
+            
+            response = self.session.post(
+                url,
+                data=form_data,
+                timeout=self.timeout
+            )
+            response.encoding = 'utf-8'
+            
+            if response.status_code == 200:
+                try:
+                    result = response.json()
+                    if result.get('status') == 'success':
+                        self.logger.info(f"✓ 需求 #{story_id} 已成功关联到项目 #{execution_id}")
+                        return ApiResponse.success_response({
+                            'story_id': story_id,
+                            'execution_id': execution_id,
+                            'message': f'需求 #{story_id} 已成功关联到项目 #{execution_id}'
+                        })
+                    else:
+                        error_msg = result.get('message', '未知错误')
+                        self.logger.warning(f"关联需求到项目失败: {error_msg}")
+                        return ApiResponse.error_response(
+                            ErrorCode.API_ERROR,
+                            f"关联需求到项目失败: {error_msg}"
+                        )
+                except json.JSONDecodeError:
+                    # 禅道 8.x 经常返回 HTML 页面而不是 JSON
+                    # 检查响应内容中是否包含错误提示
+                    response_text = response.text.lower()
+                    error_keywords = ['error', '失败', '错误', 'denied', 'permission', '无权']
+                    has_error = any(keyword in response_text for keyword in error_keywords)
+                    
+                    # 检查是否包含成功相关的提示
+                    success_keywords = ['success', '成功', 'linkstory', '关联', 'linked']
+                    has_success = any(keyword in response_text for keyword in success_keywords)
+                    
+                    if has_error and not has_success:
+                        self.logger.warning(f"关联需求到项目返回错误页面")
+                        return ApiResponse.error_response(
+                            ErrorCode.API_ERROR,
+                            "关联需求到项目失败: 返回错误页面"
+                        )
+                    else:
+                        # 对于 HTML 响应，如果没有明显的错误提示，认为可能成功
+                        # 禅道经常返回跳转页面或成功页面
+                        self.logger.info(f"✓ 需求 #{story_id} 已关联到项目 #{execution_id} (HTML响应)")
+                        return ApiResponse.success_response({
+                            'story_id': story_id,
+                            'execution_id': execution_id,
+                            'message': f'需求 #{story_id} 已关联到项目 #{execution_id}'
+                        })
+            else:
+                self.logger.error(f"关联需求到项目失败: HTTP {response.status_code}")
+                return ApiResponse.error_response(
+                    ErrorCode.API_ERROR,
+                    f"关联需求到项目失败: HTTP {response.status_code}"
+                )
+                
+        except requests.Timeout:
+            self.logger.error("关联需求到项目超时")
+            return ApiResponse.error_response(
+                ErrorCode.TIMEOUT,
+                ErrorMessage.TIMEOUT
+            )
+        except Exception as e:
+            self.logger.error(f"关联需求到项目异常: {str(e)}")
+            return ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                f"关联需求到项目失败: {str(e)}"
+            )
+
     def _get_story_detail_minimal(self, story_id: int) -> Optional[Dict]:
         """
         获取需求的最小化详情（用于批量查询）

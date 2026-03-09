@@ -614,3 +614,213 @@ class TestTaskSplitter:
                     assert result.success is True
                     # 验证 update_story_title 没有被调用
                     mock_api_client.update_story_title.assert_not_called()
+
+    class TestLinkStoryToExecution:
+        """测试关联需求到项目"""
+
+        def test_link_story_with_existing_execution(self, splitter, mock_api_client):
+            """测试需求已关联项目时直接使用"""
+            # Arrange
+            mock_api_client.get_story.return_value = ApiResponse.success_response({
+                'id': 123,
+                'title': '测试需求',
+                'execution': 20,
+                'execution_name': '已有项目'
+            })
+            mock_api_client.update_story_title.return_value = ApiResponse.success_response({'result': 'success'})
+            mock_api_client.review_story.return_value = ApiResponse.success_response({'result': 'success'})
+            mock_api_client.create_task.return_value = ApiResponse.success_response({
+                'id': 456,
+                'name': '【研发】测试需求'
+            })
+
+            with patch.object(splitter.interactive_input, 'collect_task_info_non_interactive', return_value={
+                'updated_title': '【A】测试需求',
+                'assigned_to': 'user1',
+                'task_hours': 8,
+                'deadline': '本周周五'
+            }):
+                with patch.object(splitter, '_calculate_deadline', return_value='2024-03-15'):
+                    # Act
+                    result = splitter.execute(story_id='123', grade='A', assigned_to='user1', task_hours=8)
+
+                    # Assert
+                    assert result.success is True
+                    # 验证 link_story_to_execution 没有被调用（因为需求已有关联）
+                    mock_api_client.link_story_to_execution.assert_not_called()
+                    # 验证直接使用已有的 execution_id
+                    mock_api_client.create_task.assert_called_once()
+                    call_kwargs = mock_api_client.create_task.call_args[1]
+                    assert call_kwargs['execution_id'] == 20
+
+        def test_link_story_with_default_config(self, splitter, mock_api_client):
+            """测试使用配置默认项目关联需求"""
+            # Arrange
+            mock_api_client.get_story.return_value = ApiResponse.success_response({
+                'id': 123,
+                'title': '测试需求',
+                'execution': 0  # 未关联
+            })
+            mock_api_client.get_executions.return_value = ApiResponse.success_response([
+                {'id': 10, 'name': '都江堰项目'},
+                {'id': 20, 'name': '其他项目'}
+            ])
+            mock_api_client.link_story_to_execution.return_value = ApiResponse.success_response({
+                'story_id': 123,
+                'execution_id': 10
+            })
+            mock_api_client.update_story_title.return_value = ApiResponse.success_response({'result': 'success'})
+            mock_api_client.review_story.return_value = ApiResponse.success_response({'result': 'success'})
+            mock_api_client.create_task.return_value = ApiResponse.success_response({
+                'id': 456,
+                'name': '【研发】测试需求'
+            })
+
+            # 配置默认项目名 - 使用 patch 来 mock config 方法
+            with patch.object(splitter.interactive_input, 'config') as mock_config:
+                mock_config.get_zentao_config.return_value = {
+                    'task_creation': {
+                        'default_project_name': '都江堰',
+                        'default_assigned_to': 'user1'
+                    }
+                }
+
+                with patch.object(splitter.interactive_input, 'collect_task_info_non_interactive', return_value={
+                    'updated_title': '【A】测试需求',
+                    'assigned_to': 'user1',
+                    'task_hours': 8,
+                    'deadline': '本周周五'
+                }):
+                    with patch.object(splitter, '_calculate_deadline', return_value='2024-03-15'):
+                        # Act
+                        result = splitter.execute(story_id='123', grade='A', assigned_to='user1', task_hours=8)
+
+                        # Assert
+                        assert result.success is True
+                        # 验证 link_story_to_execution 被调用
+                        mock_api_client.link_story_to_execution.assert_called_once_with(123, 10)
+                        # 验证使用匹配的项目ID
+                        mock_api_client.create_task.assert_called_once()
+                        call_kwargs = mock_api_client.create_task.call_args[1]
+                        assert call_kwargs['execution_id'] == 10
+
+        def test_link_story_with_user_selection(self, splitter, mock_api_client):
+            """测试用户交互选择项目并关联"""
+            # Arrange
+            mock_api_client.get_story.return_value = ApiResponse.success_response({
+                'id': 123,
+                'title': '测试需求',
+                'execution': 0  # 未关联
+            })
+            mock_api_client.get_executions.return_value = ApiResponse.success_response([
+                {'id': 10, 'name': '项目A'},
+                {'id': 20, 'name': '项目B'}
+            ])
+            mock_api_client.link_story_to_execution.return_value = ApiResponse.success_response({
+                'story_id': 123,
+                'execution_id': 20
+            })
+            mock_api_client.update_story_title.return_value = ApiResponse.success_response({'result': 'success'})
+            mock_api_client.review_story.return_value = ApiResponse.success_response({'result': 'success'})
+            mock_api_client.create_task.return_value = ApiResponse.success_response({
+                'id': 456,
+                'name': '【研发】测试需求'
+            })
+
+            # 无默认配置 - 使用 patch 来 mock config 方法
+            with patch.object(splitter.interactive_input, 'config') as mock_config:
+                mock_config.get_zentao_config.return_value = {
+                    'task_creation': {}
+                }
+
+                with patch.object(splitter.interactive_input, 'collect_task_info_non_interactive', return_value={
+                    'updated_title': '【A】测试需求',
+                    'assigned_to': 'user1',
+                    'task_hours': 8,
+                    'deadline': '本周周五'
+                }):
+                    with patch.object(splitter.interactive_input, 'select_execution', return_value=20):
+                        with patch.object(splitter, '_calculate_deadline', return_value='2024-03-15'):
+                            # Act
+                            result = splitter.execute(story_id='123', grade='A', assigned_to='user1', task_hours=8)
+
+                            # Assert
+                            assert result.success is True
+                            # 验证 link_story_to_execution 被调用
+                            mock_api_client.link_story_to_execution.assert_called_once_with(123, 20)
+
+        def test_link_story_failure_continue(self, splitter, mock_api_client):
+            """测试关联需求失败但继续创建任务"""
+            # Arrange
+            mock_api_client.get_story.return_value = ApiResponse.success_response({
+                'id': 123,
+                'title': '测试需求',
+                'execution': 0  # 未关联
+            })
+            mock_api_client.get_executions.return_value = ApiResponse.success_response([
+                {'id': 10, 'name': '项目A'}
+            ])
+            # 关联失败
+            mock_api_client.link_story_to_execution.return_value = ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                "关联失败"
+            )
+            mock_api_client.update_story_title.return_value = ApiResponse.success_response({'result': 'success'})
+            mock_api_client.review_story.return_value = ApiResponse.success_response({'result': 'success'})
+            mock_api_client.create_task.return_value = ApiResponse.success_response({
+                'id': 456,
+                'name': '【研发】测试需求'
+            })
+
+            # 使用 patch 来 mock config 方法
+            with patch.object(splitter.interactive_input, 'config') as mock_config:
+                mock_config.get_zentao_config.return_value = {
+                    'task_creation': {'default_project_name': '项目A'}
+                }
+
+                with patch.object(splitter.interactive_input, 'collect_task_info_non_interactive', return_value={
+                    'updated_title': '【A】测试需求',
+                    'assigned_to': 'user1',
+                    'task_hours': 8,
+                    'deadline': '本周周五'
+                }):
+                    with patch.object(splitter, '_calculate_deadline', return_value='2024-03-15'):
+                        # Act
+                        result = splitter.execute(story_id='123', grade='A', assigned_to='user1', task_hours=8)
+
+                        # Assert
+                        assert result.success is True  # 关联失败但继续
+                        # 验证 link_story_to_execution 被调用
+                        mock_api_client.link_story_to_execution.assert_called_once()
+                        # 验证仍然使用选中的项目创建任务
+                        mock_api_client.create_task.assert_called_once()
+
+        def test_link_story_get_executions_failure(self, splitter, mock_api_client):
+            """测试获取项目列表失败时中止"""
+            # Arrange
+            mock_api_client.get_story.return_value = ApiResponse.success_response({
+                'id': 123,
+                'title': '测试需求',
+                'execution': 0  # 未关联
+            })
+            mock_api_client.get_executions.return_value = ApiResponse.error_response(
+                ErrorCode.API_ERROR,
+                "获取失败"
+            )
+            mock_api_client.update_story_title.return_value = ApiResponse.success_response({'result': 'success'})
+            mock_api_client.review_story.return_value = ApiResponse.success_response({'result': 'success'})
+
+            with patch.object(splitter.interactive_input, 'collect_task_info_non_interactive', return_value={
+                'updated_title': '【A】测试需求',
+                'assigned_to': 'user1',
+                'task_hours': 8,
+                'deadline': '本周周五'
+            }):
+                # Act
+                result = splitter.execute(story_id='123', grade='A', assigned_to='user1', task_hours=8)
+
+                # Assert
+                assert result.success is False
+                assert '获取项目列表失败' in result.error.message
+                # 验证 create_task 没有被调用
+                mock_api_client.create_task.assert_not_called()

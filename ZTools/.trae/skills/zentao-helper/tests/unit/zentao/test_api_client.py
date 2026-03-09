@@ -4,6 +4,7 @@
 """
 
 import json
+import requests
 import pytest
 from unittest.mock import Mock, patch
 
@@ -3327,6 +3328,118 @@ class TestZentaoApiClient:
 
             # Act
             result = client.get_my_tasks()
+
+            # Assert
+            assert result is not None
+            assert result.success is False
+
+    class TestLinkStoryToExecution:
+        """测试将需求关联到执行/项目"""
+
+        def test_link_story_to_execution_success(self, client):
+            """测试成功关联需求到执行/项目"""
+            # Arrange
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                'status': 'success',
+                'data': {'id': 123}
+            }
+            client.session.post.return_value = mock_response
+
+            # Act
+            result = client.link_story_to_execution(123, 456)
+
+            # Assert
+            assert result is not None
+            assert result.success is True
+            assert result.data['story_id'] == 123
+            assert result.data['execution_id'] == 456
+
+        def test_link_story_to_execution_html_response_success(self, client):
+            """测试返回HTML响应（无错误关键词）- 应视为成功"""
+            # Arrange
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.side_effect = json.JSONDecodeError("test", "", 0)
+            mock_response.text = '<html>linkStory redirect</html>'
+            client.session.post.return_value = mock_response
+
+            # Act
+            result = client.link_story_to_execution(123, 456)
+
+            # Assert
+            assert result is not None
+            assert result.success is True
+
+        def test_link_story_to_execution_html_response_with_error(self, client):
+            """测试返回HTML响应（包含错误关键词）- 应视为失败"""
+            # Arrange
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.side_effect = json.JSONDecodeError("test", "", 0)
+            mock_response.text = '<html>error permission denied</html>'
+            client.session.post.return_value = mock_response
+
+            # Act
+            result = client.link_story_to_execution(123, 456)
+
+            # Assert
+            assert result is not None
+            assert result.success is False
+
+        def test_link_story_to_execution_failure(self, client):
+            """测试关联失败"""
+            # Arrange
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                'status': 'error',
+                'message': '需求已关联'
+            }
+            client.session.post.return_value = mock_response
+
+            # Act
+            result = client.link_story_to_execution(123, 456)
+
+            # Assert
+            assert result is not None
+            assert result.success is False
+
+        def test_link_story_to_execution_http_error(self, client):
+            """测试HTTP错误"""
+            # Arrange
+            mock_response = Mock()
+            mock_response.status_code = 500
+            client.session.post.return_value = mock_response
+
+            # Act
+            result = client.link_story_to_execution(123, 456)
+
+            # Assert
+            assert result is not None
+            assert result.success is False
+
+        def test_link_story_to_execution_timeout(self, client):
+            """测试超时"""
+            # Arrange
+            client.session.post.side_effect = requests.Timeout("请求超时")
+
+            # Act
+            result = client.link_story_to_execution(123, 456)
+
+            # Assert
+            assert result is not None
+            assert result.success is False
+            assert result.error.code == ErrorCode.TIMEOUT
+
+        def test_link_story_to_execution_exception(self, client):
+            """测试异常"""
+            # Arrange
+            client.session.post.side_effect = Exception("网络错误")
+
+            # Act
+            result = client.link_story_to_execution(123, 456)
 
             # Assert
             assert result is not None

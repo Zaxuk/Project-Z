@@ -134,27 +134,84 @@ class TaskSplitter(BaseAutomator):
             # 评审失败不阻断流程，只记录警告
             self.logger.debug(f"需求评审失败: {review_result.error.message if review_result.error else '未知错误'}")
 
-        # 步骤3: 选择项目
-        self.logger.debug(f"正在选择项目")
+        # 步骤3: 将需求关联到项目
+        self.logger.debug(f"正在将需求关联到项目")
+        
         # 先尝试使用需求关联的执行/项目ID
         execution_id = story.get('execution', 0)
         execution_name = story.get('execution_name', '')
         
         if execution_id:
-            self.logger.info(f"使用需求关联的执行/项目: {execution_name} (ID: {execution_id})")
+            self.logger.info(f"需求已关联到执行/项目: {execution_name} (ID: {execution_id})")
         else:
-            # 如果需求没有关联的执行/项目ID，再让用户选择
-            select_result = self._select_project()
-            if not select_result.success:
-                error_msg = f"选择项目失败: {select_result.error.message if select_result.error else '未知错误'}"
+            # 如果需求没有关联的执行/项目，需要选择并关联
+            # 先尝试使用配置的默认项目名称匹配
+            config = self.interactive_input.config.get_zentao_config()
+            default_project_name = config.get('task_creation', {}).get('default_project_name')
+            
+            # 获取所有可用的项目
+            executions_result = self.api_client.get_executions()
+            if not executions_result.success:
+                error_msg = f"获取项目列表失败: {executions_result.error.message if executions_result.error else '未知错误'}"
                 self.logger.error(error_msg)
                 return ApiResponse.error_response(
                     ErrorCode.API_ERROR,
                     f"步骤3失败：{error_msg}，任务创建已中止"
                 )
+            
+            executions = executions_result.data
+            selected_execution = None
+            
+            # 如果配置了默认项目名称，尝试从项目列表中找到匹配的项目
+            if default_project_name and executions:
+                for exec_data in executions:
+                    exec_name = exec_data.get('name', '')
+                    # 支持部分匹配：配置 "都江堰" 可以匹配 "都江堰项目"
+                    if default_project_name.lower() in exec_name.lower():
+                        selected_execution = exec_data
+                        self.logger.info(f"使用配置的默认项目: {exec_name} (ID: {exec_data.get('id')})")
+                        break
+                
+                if not selected_execution:
+                    self.logger.warning(f"配置的默认项目名称 '{default_project_name}' 未找到匹配的项目")
+            
+            # 如果没有找到匹配的项目，交互式让用户选择
+            if not selected_execution:
+                selected_execution_id = self.interactive_input.select_execution(
+                    executions,
+                    default_project_name=default_project_name
+                )
+                
+                if not selected_execution_id:
+                    return ApiResponse.error_response(
+                        ErrorCode.USER_CANCELLED,
+                        "未选择项目，已取消任务创建"
+                    )
+                
+                # 找到选中的项目信息
+                for exec_data in executions:
+                    if exec_data.get('id') == selected_execution_id:
+                        selected_execution = exec_data
+                        break
+            
+            if selected_execution:
+                execution_id = selected_execution.get('id', 0)
+                execution_name = selected_execution.get('name', '')
+                
+                # 将需求关联到选中的项目
+                self.logger.info(f"正在将需求 #{story_id} 关联到项目: {execution_name} (ID: {execution_id})")
+                link_result = self.api_client.link_story_to_execution(int(story_id), execution_id)
+                
+                if link_result.success:
+                    self.logger.info(f"✓ 需求已成功关联到项目")
+                else:
+                    # 关联失败不阻断流程，只记录警告（可能需求已经关联了）
+                    self.logger.warning(f"需求关联到项目失败: {link_result.error.message if link_result.error else '未知错误'}，将继续创建任务")
             else:
-                execution_id = select_result.data.get('execution_id', 0)
-                self.logger.info(f"✓ 已选择项目 #{execution_id}")
+                return ApiResponse.error_response(
+                    ErrorCode.API_ERROR,
+                    "无法确定要关联的项目，任务创建已中止"
+                )
 
         # 步骤4: 创建任务
         return self._perform_create(
@@ -164,6 +221,7 @@ class TaskSplitter(BaseAutomator):
             execution_id
         )
 
+    # 注意：_select_project 方法现在已内联到 execute 方法中，保留此方法用于其他场景
     def _select_project(self) -> ApiResponse:
         """
         选择项目
